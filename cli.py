@@ -5447,7 +5447,179 @@ class HermesCLI:
 
         print(f"(._.) Unknown cron command: {subcommand}")
         print("  Available: list, add, edit, pause, resume, run, remove")
-    
+
+    def _handle_gep_command(self, cmd: str):
+        """Handle /gep (Evolver) self-evolution commands."""
+        import json, subprocess, shlex
+        from pathlib import Path
+
+        EVOLVER_DIR = Path.home() / ".hermes" / "hermes-agent" / "evolver"
+        SESSIONS_DIR = Path.home() / ".hermes" / "hermes-agent" / "memory" / "evolution" / "sessions"
+        STATE_FILE = Path.home() / ".hermes" / "hermes-agent" / "memory" / "evolution" / "evolution_state.json"
+        GENES_FILE = EVOLVER_DIR / "assets" / "gep" / "genes.json"
+        BRIDGE_SCRIPT = Path.home() / ".hermes" / "hermes-agent" / "scripts" / "hermes_to_evolver_bridge.py"
+
+        tokens = cmd.strip().split()
+        subcommand = tokens[1].lower() if len(tokens) > 1 else "status"
+
+        def print_ok(msg):
+            print(f"  {msg}")
+
+        if subcommand == "sync":
+            # Run the bridge to sync Hermes sessions → Evolver session logs
+            print_ok("Syncing Hermes sessions → Evolver session logs...")
+            result = subprocess.run(
+                [sys.executable, str(BRIDGE_SCRIPT)],
+                capture_output=True, text=True, cwd=str(EVOLVER_DIR.parent)
+            )
+            if result.returncode == 0:
+                lines = [l for l in result.stdout.splitlines() if l.startswith("[bridge]")]
+                for l in lines:
+                    print(f"  {l}")
+                print_ok(f"Sync complete.")
+            else:
+                print(f"(x_x) Bridge failed: {result.stderr}")
+            return
+
+        elif subcommand == "analyze":
+            # Run Evolver analysis
+            print_ok("Running Evolver analysis...")
+            print("  (This runs the full GEP cycle — may take a moment)")
+            result = subprocess.run(
+                ["node", "index.js"],
+                capture_output=True, text=True, cwd=str(EVOLVER_DIR),
+                env={**subprocess.os.environ.copy(), "A2A_HUB_URL": ""}
+            )
+            output = result.stdout
+            # Extract key info from GEP output
+            lines = output.splitlines()
+            # Find the Mutation section
+            in_mutation = False
+            mutation_lines = []
+            personality_lines = []
+            in_personality = False
+            for line in lines:
+                if '"type": "Mutation"' in line or (in_mutation and not line.startswith("{")):
+                    in_mutation = True
+                    mutation_lines.append(line)
+                elif in_mutation and '"type": "PersonalityState"' in line:
+                    in_mutation = False
+                    in_personality = True
+                    personality_lines.append(line)
+                elif in_personality:
+                    personality_lines.append(line)
+                elif "cycleCount" in line or "lastRun" in line:
+                    pass  # already shown in state
+            # Show last 60 lines (summary)
+            print("")
+            for line in lines[-60:]:
+                print(f"  {line}")
+            return
+
+        elif subcommand == "recall":
+            # Show evolution memory state
+            print_ok("Evolution Memory State")
+            if STATE_FILE.exists():
+                state = json.loads(STATE_FILE.read_text())
+                print(f"  Cycles: {state.get('cycleCount', '?')}")
+                last = state.get('lastRun')
+                if last:
+                    from datetime import datetime
+                    print(f"  Last run: {datetime.fromtimestamp(last/1000).isoformat()}")
+            else:
+                print("  (no state file)")
+            # Show recent sessions
+            if SESSIONS_DIR.exists():
+                sessions = sorted(SESSIONS_DIR.glob("hermes_session_*.jsonl"), key=lambda p: p.stat().st_mtime)
+                print(f"  Session logs: {len(sessions)} files")
+                if sessions:
+                    latest = sessions[-1]
+                    print(f"  Latest: {latest.name}")
+            print("")
+            print_ok("Gene Store")
+            if GENES_FILE.exists():
+                genes = json.loads(GENES_FILE.read_text())
+                print(f"  Genes: {len(genes.get('genes', []))}")
+                for g in genes.get("genes", []):
+                    print(f"    - {g.get('id')} ({g.get('category')})")
+            return
+
+        elif subcommand == "record":
+            # Manually record a signal/outcome
+            print_ok("Manual signal recording")
+            print("  Usage: /gep record <signal> [details]")
+            print("  Signals: log_error, perf_bottleneck, user_feature_request,")
+            print("           capability_gap, deployment_issue, test_failure")
+            print("  (For programmatic use — cron jobs handle automatic recording)")
+            return
+
+        elif subcommand == "genes":
+            # Show current gene store
+            if not GENES_FILE.exists():
+                print("(x_x) No genes.json found")
+                return
+            genes = json.loads(GENES_FILE.read_text())
+            print_ok(f"Gene Store — {len(genes.get('genes', []))} genes")
+            for g in genes.get("genes", []):
+                print(f"")
+                print(f"  {g.get('id')}")
+                print(f"    category: {g.get('category')}")
+                print(f"    signals: {', '.join(g.get('signals_match', []))}")
+                summary = g.get('strategy', [])
+                if summary:
+                    print(f"    strategy: {summary[0][:80]}...")
+            return
+
+        elif subcommand == "cycles":
+            # Show evolution history
+            evo_state = EVOLVER_DIR / "memory" / "evolution" / "evolution_state.json"
+            if evo_state.exists():
+                state = json.loads(evo_state.read_text())
+                print_ok(f"Evolution Cycles: {state.get('cycleCount', 0)}")
+                last = state.get('lastRun')
+                if last:
+                    from datetime import datetime
+                    print(f"  Last: {datetime.fromtimestamp(last/1000).isoformat()}")
+            else:
+                print("  (no cycles yet)")
+            return
+
+        elif subcommand in ("status", ""):
+            # Show full status
+            print_ok("Evolver × Hermes 集成状态")
+            print("")
+            # State
+            if STATE_FILE.exists():
+                state = json.loads(STATE_FILE.read_text())
+                print(f"  Cycles (Hermes): {state.get('cycleCount', 0)}")
+            else:
+                print("  Cycles: 0")
+            evo_state = EVOLVER_DIR / "memory" / "evolution" / "evolution_state.json"
+            if evo_state.exists():
+                state = json.loads(evo_state.read_text())
+                print(f"  Cycles (Evolver): {state.get('cycleCount', 0)}")
+            # Sessions
+            if SESSIONS_DIR.exists():
+                sessions = list(SESSIONS_DIR.glob("hermes_session_*.jsonl"))
+                print(f"  Session logs: {len(sessions)}")
+            # Genes
+            if GENES_FILE.exists():
+                genes = json.loads(GENES_FILE.read_text())
+                print(f"  Genes: {len(genes.get('genes', []))}")
+            print("")
+            print_ok("可用命令:")
+            print("  /gep sync      — 同步 Hermes sessions → Evolver")
+            print("  /gep analyze   — 运行 Evolver 进化分析")
+            print("  /gep recall    — 查看进化记忆状态")
+            print("  /gep genes     — 查看基因库")
+            print("  /gep cycles    — 查看进化周期")
+            print("  /gep status    — 显示完整状态 (同此输出)")
+            return
+
+        else:
+            print(f"(._.) Unknown /gep subcommand: {subcommand}")
+            print("  Available: sync, analyze, recall, genes, cycles, status")
+
     def _handle_skills_command(self, cmd: str):
         """Handle /skills slash command — delegates to hermes_cli.skills_hub."""
         from hermes_cli.skills_hub import handle_skills_slash
@@ -5675,6 +5847,18 @@ class HermesCLI:
             self._handle_personality_command(cmd_original)
         elif canonical == "plan":
             self._handle_plan_command(cmd_original)
+        elif canonical == "spec":
+            self._handle_spec_command(cmd_original)
+        elif canonical == "build":
+            self._handle_build_command(cmd_original)
+        elif canonical == "test":
+            self._handle_test_command(cmd_original)
+        elif canonical == "review":
+            self._handle_review_command(cmd_original)
+        elif canonical == "ship":
+            self._handle_ship_command(cmd_original)
+        elif canonical == "code-simplify":
+            self._handle_code_simplify_command(cmd_original)
         elif canonical == "retry":
             retry_msg = self.retry_last()
             if retry_msg and hasattr(self, '_pending_input'):
@@ -5688,6 +5872,8 @@ class HermesCLI:
             self.save_conversation()
         elif canonical == "cron":
             self._handle_cron_command(cmd_original)
+        elif canonical == "gep":
+            self._handle_gep_command(cmd_original)
         elif canonical == "skills":
             with self._busy_command(self._slow_command_status(cmd_original)):
                 self._handle_skills_command(cmd_original)
@@ -5934,7 +6120,109 @@ class HermesCLI:
             self._pending_input.put(msg)
         else:
             ChatConsole().print("[bold red]Plan mode unavailable: input queue not initialized[/]")
-    
+
+    def _handle_spec_command(self, cmd: str):
+        """Handle /spec [request] — load the spec-driven-development skill."""
+        parts = cmd.strip().split(maxsplit=1)
+        user_instruction = parts[1].strip() if len(parts) > 1 else ""
+        msg = build_skill_invocation_message(
+            "/spec", user_instruction, task_id=self.session_id,
+            runtime_note="Save the spec with write_file to SPEC.md in the project root.",
+        )
+        if not msg:
+            ChatConsole().print("[bold red]Failed to load /spec skill[/]")
+            return
+        _cprint(f"  📐 Spec mode queued via skill.")
+        if hasattr(self, '_pending_input'):
+            self._pending_input.put(msg)
+        else:
+            ChatConsole().print("[bold red]Spec mode unavailable: input queue not initialized[/]")
+
+    def _handle_build_command(self, cmd: str):
+        """Handle /build [request] — load the incremental-implementation skill."""
+        parts = cmd.strip().split(maxsplit=1)
+        user_instruction = parts[1].strip() if len(parts) > 1 else ""
+        msg = build_skill_invocation_message(
+            "/build", user_instruction, task_id=self.session_id,
+            runtime_note="Build in thin vertical slices. Complete one feature fully before moving to the next.",
+        )
+        if not msg:
+            ChatConsole().print("[bold red]Failed to load /build skill[/]")
+            return
+        _cprint(f"  🔨 Build mode queued via skill.")
+        if hasattr(self, '_pending_input'):
+            self._pending_input.put(msg)
+        else:
+            ChatConsole().print("[bold red]Build mode unavailable: input queue not initialized[/]")
+
+    def _handle_test_command(self, cmd: str):
+        """Handle /test [request] — load the test-driven-development skill."""
+        parts = cmd.strip().split(maxsplit=1)
+        user_instruction = parts[1].strip() if len(parts) > 1 else ""
+        msg = build_skill_invocation_message(
+            "/test", user_instruction, task_id=self.session_id,
+            runtime_note="Write tests first. Tests are living documentation of expected behavior.",
+        )
+        if not msg:
+            ChatConsole().print("[bold red]Failed to load /test skill[/]")
+            return
+        _cprint(f"  🧪 Test mode queued via skill.")
+        if hasattr(self, '_pending_input'):
+            self._pending_input.put(msg)
+        else:
+            ChatConsole().print("[bold red]Test mode unavailable: input queue not initialized[/]")
+
+    def _handle_review_command(self, cmd: str):
+        """Handle /review [request] — load the code-review-and-quality skill."""
+        parts = cmd.strip().split(maxsplit=1)
+        user_instruction = parts[1].strip() if len(parts) > 1 else ""
+        msg = build_skill_invocation_message(
+            "/review", user_instruction, task_id=self.session_id,
+            runtime_note="Review code quality, readability, and potential issues before merging.",
+        )
+        if not msg:
+            ChatConsole().print("[bold red]Failed to load /review skill[/]")
+            return
+        _cprint(f"  🔍 Review mode queued via skill.")
+        if hasattr(self, '_pending_input'):
+            self._pending_input.put(msg)
+        else:
+            ChatConsole().print("[bold red]Review mode unavailable: input queue not initialized[/]")
+
+    def _handle_ship_command(self, cmd: str):
+        """Handle /ship [request] — load the shipping-and-launch skill."""
+        parts = cmd.strip().split(maxsplit=1)
+        user_instruction = parts[1].strip() if len(parts) > 1 else ""
+        msg = build_skill_invocation_message(
+            "/ship", user_instruction, task_id=self.session_id,
+            runtime_note="Ship to production: deploy, monitor, validate. Faster is safer.",
+        )
+        if not msg:
+            ChatConsole().print("[bold red]Failed to load /ship skill[/]")
+            return
+        _cprint(f"  🚀 Ship mode queued via skill.")
+        if hasattr(self, '_pending_input'):
+            self._pending_input.put(msg)
+        else:
+            ChatConsole().print("[bold red]Ship mode unavailable: input queue not initialized[/]")
+
+    def _handle_code_simplify_command(self, cmd: str):
+        """Handle /code-simplify [request] — load the code-simplification skill."""
+        parts = cmd.strip().split(maxsplit=1)
+        user_instruction = parts[1].strip() if len(parts) > 1 else ""
+        msg = build_skill_invocation_message(
+            "/code-simplify", user_instruction, task_id=self.session_id,
+            runtime_note="Simplify code for clarity over cleverness. Delete dead code. Reduce complexity.",
+        )
+        if not msg:
+            ChatConsole().print("[bold red]Failed to load /code-simplify skill[/]")
+            return
+        _cprint(f"  ✂️ Code simplify mode queued via skill.")
+        if hasattr(self, '_pending_input'):
+            self._pending_input.put(msg)
+        else:
+            ChatConsole().print("[bold red]Code simplify mode unavailable: input queue not initialized[/]")
+
     def _handle_background_command(self, cmd: str):
         """Handle /background <prompt> — run a prompt in a separate background session.
 
