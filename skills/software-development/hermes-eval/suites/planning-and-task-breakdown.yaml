@@ -1,0 +1,41 @@
+skill: planning-and-task-breakdown
+version: 2.0.0
+category: software-development
+
+cases:
+  - id: trigger-task-too-large
+    description: 任务过大无从下手触发
+    type: reasoning
+    input: "我要做一个电商后端系统，从哪开始？"
+    expected: 应触发任务分解，输出阶段性里程碑和并行化建议
+
+  - id: trigger-implementation-plan
+    description: 实现计划请求触发
+    type: reasoning
+    input: "帮我规划一下怎么实现这个推荐算法"
+    expected: 应包含任务分解、估算工时、并行化机会
+
+  - id: trigger-break-down
+    description: 明确要求拆解
+    type: reasoning
+    input: "把这个需求拆解成可执行的任务"
+    expected: 应输出带验收标准的多级任务列表
+
+  - id: ria-tvv-structure
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|version: 2.0.0"
+  - id: has-trigger-section
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|## A2"
+  - id: has-acceptance-criteria
+    description: 每个任务有验收标准
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|验收标准"
+  - id: has-parallelization
+    description: 包含并行化分析
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|并行"

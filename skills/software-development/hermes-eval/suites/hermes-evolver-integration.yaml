@@ -1,0 +1,31 @@
+skill: hermes-evolver-integration
+version: 2.0.0
+category: software-development
+
+cases:
+  - id: trigger-evolver
+    type: reasoning
+    input: "Evolver是什么？它是怎么和Hermes一起工作的？"
+    expected: 应准确描述Evolver框架及其与Hermes的集成机制
+
+  - id: trigger-self-evolution
+    type: reasoning
+    input: "我想让agent自动学习新技能，怎么配置？"
+    expected: 应说明Evolver的自动进化配置和使用方式
+
+  - id: ria-tvv-structure
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|version: 2.0.0"
+  - id: has-trigger-section
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|## A2"
+  - id: has-evolver-mechanism
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|Evolver"
+  - id: has-skill-upgrade
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|升级"

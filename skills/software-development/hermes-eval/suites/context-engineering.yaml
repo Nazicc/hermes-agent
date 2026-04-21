@@ -1,0 +1,35 @@
+skill: context-engineering
+version: 2.0.0
+category: software-development
+
+cases:
+  - id: trigger-context-overflow
+    type: reasoning
+    input: "这个项目文件太多了，context快装不下了，怎么优化？"
+    expected: 应识别context溢出问题，输出优化方案
+
+  - id: trigger-context-optimize
+    type: reasoning
+    input: "帮我优化一下prompt，减少token消耗"
+    expected: 应执行context压缩和优化策略
+
+  - id: ria-tvv-structure
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|version: 2.0.0"
+  - id: has-trigger-section
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|## A2"
+  - id: has-token-optimize
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|token"
+  - id: has-priority
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|优先级"
+  - id: has-compression
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|压缩"

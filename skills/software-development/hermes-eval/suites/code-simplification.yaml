@@ -1,0 +1,35 @@
+skill: code-simplification
+version: 2.0.0
+category: software-development
+
+cases:
+  - id: trigger-complexity
+    type: reasoning
+    input: "这段代码嵌套太深了，看不懂，帮我简化"
+    expected: 应分析复杂度来源，输出简化方案，保持语义等价
+
+  - id: trigger-refactor
+    type: reasoning
+    input: "这段逻辑能不能更简洁？太难维护了"
+    expected: 应识别为重构场景，给出可验证的简化方案
+
+  - id: ria-tvv-structure
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|version: 2.0.0"
+  - id: has-trigger-section
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|## A2"
+  - id: has-semantic-equivalence
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|语义等价"
+  - id: has-readability
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|可读性"
+  - id: has-test-after
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|测试"

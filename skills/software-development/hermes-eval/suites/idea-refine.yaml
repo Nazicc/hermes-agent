@@ -1,0 +1,35 @@
+skill: idea-refine
+version: 2.0.0
+category: software-development
+
+cases:
+  - id: trigger-idea-vague
+    type: reasoning
+    input: "我有个想法，做一个AI助手，能帮我规划日程，你觉得可行吗？"
+    expected: 应识别模糊需求，通过追问收敛约束，输出精化方案
+
+  - id: trigger-constraint
+    type: reasoning
+    input: "这个功能要能在离线环境下使用，帮我完善一下"
+    expected: 应在约束条件下完善功能设计
+
+  - id: ria-tvv-structure
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|version: 2.0.0"
+  - id: has-trigger-section
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|## A2"
+  - id: has-constraint
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|约束"
+  - id: has-divergence
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|收敛"
+  - id: has-tradeoff
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|权衡"

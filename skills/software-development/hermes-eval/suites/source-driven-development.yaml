@@ -1,0 +1,35 @@
+skill: source-driven-development
+version: 2.0.0
+category: software-development
+
+cases:
+  - id: trigger-trace-source
+    type: reasoning
+    input: "这个错误是从哪行代码产生的？帮我溯源"
+    expected: 应从错误信息出发，溯源到具体源码位置
+
+  - id: trigger-read-source
+    type: reasoning
+    input: "帮我看看这个第三方库的源码，了解它的实现逻辑"
+    expected: 应执行源码阅读理解，提取关键设计模式
+
+  - id: ria-tvv-structure
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|version: 2.0.0"
+  - id: has-trigger-section
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|## A2"
+  - id: has-trace-path
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|溯源"
+  - id: has-dependency
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|依赖"
+  - id: has-callchain
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|调用链"

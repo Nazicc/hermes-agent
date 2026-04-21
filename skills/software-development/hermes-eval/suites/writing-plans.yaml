@@ -1,0 +1,35 @@
+skill: writing-plans
+version: 2.0.0
+category: software-development
+
+cases:
+  - id: trigger-write-plan
+    type: reasoning
+    input: "帮我写一个项目计划，包含时间线和里程碑"
+    expected: 应输出多层级项目计划，含时间线和验收标准
+
+  - id: trigger-roadmap
+    type: reasoning
+    input: "帮我做一个三个月的技术改造路线图"
+    expected: 应按阶段分解，输出阶段性目标和资源需求
+
+  - id: ria-tvv-structure
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|version: 2.0.0"
+  - id: has-trigger-section
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|## A2"
+  - id: has-milestone
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|里程碑"
+  - id: has-resource
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|资源"
+  - id: has-risk
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|风险"

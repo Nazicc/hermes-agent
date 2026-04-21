@@ -1,0 +1,35 @@
+skill: spec-driven-development
+version: 2.0.0
+category: software-development
+
+cases:
+  - id: trigger-spec-first
+    type: reasoning
+    input: "帮我先写API规范，再实现代码"
+    expected: 应先输出OpenAPI/接口规范，再按规范实现
+
+  - id: trigger-requirements
+    type: reasoning
+    input: "我要做一个用户画像功能，先帮我把需求文档写清楚"
+    expected: 应先编写完整需求规格说明书
+
+  - id: ria-tvv-structure
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|version: 2.0.0"
+  - id: has-trigger-section
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|## A2"
+  - id: has-spec-output
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|规范"
+  - id: has-acceptance-criteria
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|验收"
+  - id: has-verify-first
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|验证"

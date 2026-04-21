@@ -1,0 +1,35 @@
+skill: requesting-code-review
+version: 2.0.0
+category: software-development
+
+cases:
+  - id: trigger-review-request
+    type: reasoning
+    input: "帮我review一下这个PR，链接是 https://github.com/xxx/pull/123"
+    expected: 应识别PR URL，执行代码审查流程，输出结构化审查意见
+
+  - id: trigger-code-review
+    type: reasoning
+    input: "review一下这段代码有没有安全问题"
+    expected: 应执行安全导向代码审查
+
+  - id: ria-tvv-structure
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|version: 2.0.0"
+  - id: has-trigger-section
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|## A2"
+  - id: has-execution-section
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|## E —"
+  - id: has-security-check
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|安全"
+  - id: has-incremental
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|增量"

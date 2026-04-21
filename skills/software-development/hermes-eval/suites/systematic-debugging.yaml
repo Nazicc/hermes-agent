@@ -1,0 +1,54 @@
+skill: systematic-debugging
+version: 2.0.0
+category: software-development
+description: |
+  闭环调试协议 — 4阶段根因调查，不理解问题绝不修复。
+
+cases:
+  - id: trigger-bug-report
+    description: Bug 报告触发识别
+    type: reasoning
+    input: "我的程序跑着跑着突然崩溃了，日志显示 'Segmentation fault'"
+    expected: 应激活调试skill，包含收集信息/复现/隔离/根因4阶段
+
+  - id: trigger-test-failure
+    description: 测试失败触发识别
+    type: reasoning
+    input: "pytest 报错了，说 test_user_login 失败，assertion error"
+    expected: 应识别为测试失败场景，触发TDD/调试协议
+
+  - id: trigger-build-error
+    description: 构建失败触发识别
+    type: reasoning
+    input: "npm run build 失败了，TypeScript 报错说 Cannot find module './utils'"
+    expected: 应识别为构建失败，进入调试流程
+
+  - id: ria-tvv-structure
+    description: RIA-TV++ v2.0.0 结构完整性
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|version: 2.0.0"
+
+  - id: has-trigger-section
+    description: 包含 A2 触发场景章节
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|## A2"
+
+  - id: has-execution-section
+    description: 包含 E 执行章节
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|## E —"
+
+  - id: has-boundary-section
+    description: 包含 B 边界章节
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|## B —"
+
+  - id: has-related-skills
+    description: 包含 related_skills 元数据
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|related_skills"

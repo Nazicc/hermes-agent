@@ -1,0 +1,51 @@
+skill: test-driven-development
+version: 2.0.0
+category: software-development
+description: |
+  TDD 红绿重构循环 — 无失败测试绝不写生产代码。
+
+cases:
+  - id: trigger-new-feature
+    description: 新功能实现触发识别
+    type: reasoning
+    input: "帮我实现一个用户注册功能，包括邮箱验证"
+    expected: 应激活TDD，遵循红绿重构，先写失败测试再写实现
+
+  - id: trigger-bug-fix
+    description: Bug 修复触发识别
+    type: reasoning
+    input: "修复这个登录bug：用户名为空时也会校验通过"
+    expected: 应先写失败测试捕获bug行为，再修复
+
+  - id: trigger-user-tdd-request
+    description: 用户明确要求TDD
+    type: reasoning
+    input: "用TDD的方式写一个计算器模块"
+    expected: 应执行完整红绿重构流程
+
+  - id: ria-tvv-structure
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|version: 2.0.0"
+
+  - id: has-trigger-section
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|## A2"
+
+  - id: has-red-green-refactor
+    description: 包含红绿重构步骤
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|RED"
+
+  - id: has-iron-law
+    description: 包含铁律：无不失败测试不写生产代码
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|Iron Law"
+
+  - id: has-related-skills
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|related_skills"

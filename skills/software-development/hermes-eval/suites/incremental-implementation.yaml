@@ -1,0 +1,35 @@
+skill: incremental-implementation
+version: 2.0.0
+category: software-development
+
+cases:
+  - id: trigger-large-change
+    type: reasoning
+    input: "这个重构涉及30个文件，能不能分步骤做？"
+    expected: 应识别为大变更，输出分步骤增量交付计划
+
+  - id: trigger-step-by-step
+    type: reasoning
+    input: "每次只改一点，帮我制定一个渐进式重构方案"
+    expected: 应制定里程碑式增量计划，每个增量可独立测试
+
+  - id: ria-tvv-structure
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|version: 2.0.0"
+  - id: has-trigger-section
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|## A2"
+  - id: has-milestone
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|里程碑"
+  - id: has-independent-deploy
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|独立"
+  - id: has-rollback
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|回滚"

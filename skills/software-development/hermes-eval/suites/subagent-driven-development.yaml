@@ -1,0 +1,35 @@
+skill: subagent-driven-development
+version: 2.0.0
+category: software-development
+
+cases:
+  - id: trigger-parallel-work
+    type: reasoning
+    input: "这个项目的前端和后端能不能同时开发？"
+    expected: 应识别并行化机会，分配独立子代理任务
+
+  - id: trigger-multi-agent
+    type: reasoning
+    input: "我需要同时做数据清洗、模型训练、API开发三个任务"
+    expected: 应拆分为三个独立子代理并行执行
+
+  - id: ria-tvv-structure
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|version: 2.0.0"
+  - id: has-trigger-section
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|## A2"
+  - id: has-isolation
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|隔离"
+  - id: has-communication
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|通信"
+  - id: has-merge-strategy
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|合并"

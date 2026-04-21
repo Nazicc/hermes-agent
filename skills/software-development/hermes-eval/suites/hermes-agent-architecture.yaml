@@ -1,0 +1,31 @@
+skill: hermes-agent-architecture
+version: 2.0.0
+category: software-development
+
+cases:
+  - id: trigger-hermes-internals
+    type: reasoning
+    input: "Hermes Agent是怎么加载skill的？能告诉我它的架构吗？"
+    expected: 应准确描述Hermes Agent架构和skill加载机制
+
+  - id: trigger-skill-load
+    type: reasoning
+    input: "我想新增一个skill，应该放在哪个目录？"
+    expected: 应告知正确目录结构和skill注册流程
+
+  - id: ria-tvv-structure
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|version: 2.0.0"
+  - id: has-trigger-section
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|## A2"
+  - id: has-components
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|架构"
+  - id: has-skill-path
+    type: file_edit
+    input: ""
+    expected: "SKILL.md|skills"
