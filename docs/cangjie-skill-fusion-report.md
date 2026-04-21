@@ -194,21 +194,29 @@ metadata:
 
 ## 四、融合行动计划
 
-### 第一批（优先级最高）
+### 第一批（已完成 ✅）
 
-1. **systematic-debugging** — 已有完整内容，缺 A2 + 诱饵测试
-2. **test-driven-development** — 同上
-3. **planning-and-task-breakdown** — 高频使用，ROI 高
+1. **systematic-debugging** ✅ — 2026-04-22 完成
+   - 已有完整内容，缺 A2 + 诱饵测试
+   - 升级：添加 A2 trigger + E execution + B boundary + R/I/A1
 
-### 第二批
+2. **test-driven-development** ✅ — 2026-04-22 完成
+   - 升级：添加 A2 trigger + E execution + B boundary + R/I/A1
+   - 升级后文件大小：约 500 行（+158 行新内容）
 
-3. **requesting-code-review**
-4. **incremental-implementation**
-5. **code-simplification**
+3. **planning-and-task-breakdown** ✅ — 2026-04-22 完成
+   - 升级：添加 A2 trigger + E execution + B boundary + R/I/A1
+   - 升级后文件大小：约 377 行（+155 行新内容）
+
+### 第二批（待办）
+
+4. **requesting-code-review** — 高频使用，ROI 高
+5. **incremental-implementation** — 高频使用
+6. **code-simplification** — 重构相关
 
 ### 第三批
 
-6. 其他 skills
+7. 其他 skills（按使用频率排序）
 
 ---
 
