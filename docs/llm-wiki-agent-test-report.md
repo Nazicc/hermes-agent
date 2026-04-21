@@ -22,7 +22,7 @@ git clone https://github.com/SamurAIGPT/llm-wiki-agent.git ~/llm-wiki-agent
 
 | Env Var | 值 |
 |---------|-----|
-| `OPENAI_API_KEY` | `sk-cp-AJymxdg3vTndxGD7nQ03P8g56NR1kSnNnyGl1yRSGlF16E8zlQBuUV1fPKAMWzLxQMnoc1r4jhTP-5ZANOcZQIXVzlRXNkmCSxUj2r-8Q4CAQtec5ST7u5U` |
+| `OPENAI_API_KEY` | `sk-cp-REAL_KEY_WAS_HEREGl1yRSGlF16E8zlQBuUV1fPKAMWzLxQMnoc1r4jhTP-5ZANOcZQIXVzlRXNkmCSxUj2r-8Q4CAQtec5ST7u5U` |
 | `LITELLM_API_KEY` | 同上 |
 | `LLM_MODEL` | `MiniMax-M2.7` |
 | `LLM_MODEL_FAST` | `MiniMax-M2.7` |
