@@ -591,3 +591,64 @@ cd mempalace && git pull && uv sync
 ---
 
 *本指南基于 mempalace v3.3.2，GitHub API 数据截至 2026-04-21。*
+
+
+---
+
+## 端到端测试结果（2026-04-21）
+
+### ✅ 测试 1: mine（red-teaming 子目录）
+- **命令**: `mempalace mine ~/.hermes/hermes-agent/skills/red-teaming --no-gitignore`
+- **结果**: 成功。9 files → 197 drawers, 29.5s
+- **输出**: Wing=red-teaming, Room=general
+
+### ✅ 测试 2: mine（完整 hermes-agent 目录）
+- **命令**: `mempalace mine ~/.hermes/hermes-agent --no-gitignore`
+- **结果**: 成功。358 files processed, 12 skipped (already filed), **10,220 drawers** filed
+- **Room**: general（所有文件未分room）
+- **进度**: 后台任务 50s sleep 完成，全部 370 个文件处理完毕
+
+### ✅ 测试 3: search（语义搜索）
+- **命令**: `mempalace search "context engineering"`
+- **结果**: 返回 2 条相关结果，匹配分数 0.502/0.501
+- **内容**: 正确返回 SKILL.md 和 structured-content-template.md 中的相关内容
+- **延迟**: ~1.7s（ONNX embedding 推理）
+
+### ✅ 测试 4: wake-up（上下文预热）
+- **命令**: `mempalace wake-up`
+- **结果**: 正常输出 ~817 tokens L0+L1 上下文
+- **内容**: 包含 batch_runner.py 等文件的片段摘要
+
+### ✅ 测试 5: MCP Server（JSON-RPC）
+- **命令**: `python -m mempalace.mcp_server`
+- **结果**: MCP Server 启动正常，JSON-RPC 2.0 兼容
+- **工具数量**: **29 个工具**（完整列表见上文）
+- **协议版本**: 2024-11-05
+- **测试调用**: `mempalace_search` 通过 MCP 协议调用成功，返回结果正确
+
+### ✅ 测试 6: ONNX Embedding 模型
+- **模型**: all-MiniLM-L6-v2（79MB tar.gz → 178MB 解压）
+- **解压后文件**: config.json, model.onnx (86MB), tokenizer.json, vocab.txt 等
+- **推理**: 搜索延迟 ~1.7s，首token延迟更低
+
+### 关键路径速查
+```
+Palace:           ~/palace/
+ChromaDB:         ~/palace/chroma.sqlite3
+Embedding 模型:   ~/.cache/chroma/onnx_models/all-MiniLM-L6-v2/onnx/
+Config:           ~/.mempalace/config.json
+Hooks:            ~/.mempalace/hooks/
+CLI binary:       ~/.local/bin/mempalace
+Python venv:      ~/.local/share/uv/tools/mempalace/
+```
+
+### MCP Server 启动命令
+```bash
+# 方式 1: MCP client 自动启动
+claude mcp add mempalace -- python -m mempalace.mcp_server
+
+# 方式 2: 手动启动
+MEMPALACE_PALACE_PATH=~/palace python -m mempalace.mcp_server
+
+# MCP 工具列表: 29 个（status, search, kg_*, traverse, tunnel_*, diary_*, 等）
+```
