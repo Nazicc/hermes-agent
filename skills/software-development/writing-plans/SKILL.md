@@ -1,71 +1,135 @@
 ---
 name: writing-plans
-description: Use when you have a spec or requirements for a multi-step task. Creates comprehensive implementation plans with bite-sized tasks, exact file paths, and complete code examples.
-version: 1.1.0
-author: Hermes Agent (adapted from obra/superpowers)
-license: MIT
+description: >
+  Creates comprehensive implementation plans with bite-sized tasks, exact file paths,
+  and complete code examples. Use when you have a spec or requirements for a multi-step task.
+trigger:
+  - "write a plan"
+  - "create a plan"
+  - "implementation plan"
+  - "how do I implement"
+  - "做计划"
+  - "实施计划"
+  - "implementation"
+  - "开发计划"
+  - "task breakdown"
+anti_trigger:
+  - "single step"  # 一步就完成不需要做计划
+  - "already have a plan"  # 已有计划不需要再写
+  - "我知道怎么做"  # 用户已知道怎么做
+source: hermes-agent (adapted from obra/superpowers)
+version: 2.0.0
 metadata:
   hermes:
+    quality_redlines:
+      - MUST have E (Execution) section
+      - MUST have B (Boundary) section
+      - MUST have A2 (Trigger) section
     tags: [planning, design, implementation, workflow, documentation]
     related_skills: [subagent-driven-development, test-driven-development, requesting-code-review]
 ---
 
-# Writing Implementation Plans
+## A2 — 触发场景 (Trigger) ★
 
-## Overview
+**激活条件：** 有 spec 或需求，涉及多步骤任务，需要创建实施计划。
 
-Write comprehensive implementation plans assuming the implementer has zero context for the codebase and questionable taste. Document everything they need: which files to touch, complete code, testing commands, docs to check, how to verify. Give them bite-sized tasks. DRY. YAGNI. TDD. Frequent commits.
+**触发信号语言：**
+- "write a plan"、"create a plan"、"implementation plan"
+- "how do I implement"、"做计划"、"实施计划"、"implementation"、"开发计划"
+- "task breakdown"
+- 任何多步骤功能实现需求
 
-Assume the implementer is a skilled developer but knows almost nothing about the toolset or problem domain. Assume they don't know good test design very well.
+**区分相邻 skill：**
+- `spec-driven-development`：产出规格文档，本 skill 基于规格产出实施计划
+- `subagent-driven-development`：执行本 skill 创建的计划
+- `idea-refine`：把想法精炼为可执行方案，本 skill 基于已有方案做实施计划
 
-**Core principle:** A good plan makes implementation obvious. If someone has to guess, the plan is incomplete.
+**Skip 场景：** 一步就完成、已有计划、用户已知道怎么做。
 
-## When to Use
+---
 
-**Always use before:**
-- Implementing multi-step features
-- Breaking down complex requirements
-- Delegating to subagents via subagent-driven-development
+## R — 知识溯源 (Reading)
 
-**Don't skip when:**
-- Feature seems simple (assumptions cause bugs)
-- You plan to implement it yourself (future you needs guidance)
-- Working alone (documentation matters)
+**核心原则（来源：obra/superpowers）：** A good plan makes implementation obvious. 如果有人需要猜，计划就不完整。
 
-## Bite-Sized Task Granularity
+**核心假设：** 假设实施者是个有技能的开发者，但对工具集或问题域几乎一无所知。假设他们不太懂好的测试设计。
 
-**Each task = 2-5 minutes of focused work.**
+**Plan 必须包含的内容：** 哪些文件要改、完整代码、测试命令、要检查的文档、如何验证。给他们小而清晰的任务。
 
-Every step is one action:
-- "Write the failing test" — step
-- "Run it to make sure it fails" — step
-- "Implement the minimal code to make the test pass" — step
-- "Run the tests and make sure they pass" — step
-- "Commit" — step
+---
 
-**Too big:**
-```markdown
-### Task 1: Build authentication system
-[50 lines of code across 5 files]
+## I — 方法论骨架 (Interpretation)
+
+**本 skill 的本质：** 把规格变成可执行的行动计划。每个任务 2-5 分钟专注工作，包含完整代码示例、精确文件路径和可执行的验证命令。
+
+**为什么需要 bite-sized tasks？**
+- 2-5 分钟任务容易 review
+- 失败容易定位（如果 task 太粗，失败不知道在哪）
+- 每次小成功积累 momentum
+
+**Plan vs Spec：**
+- Spec = 我们要构建什么、为什么
+- Plan = 我们如何一步步构建、每个步骤验证什么
+
+---
+
+## A1 — 实践案例 (Past Application)
+
+**反面教训：**
+- **反面1：task 太粗** → "实现认证系统"（50 行代码跨 5 个文件），reviewer 不知道从哪审起，失败也不知道在哪。改成精确的小任务
+- **反面2：代码示例不完整** → "添加验证函数"（没有代码），implementer 随便写了个错的。计划必须包含完整可 copy-paste 的代码
+- **反面3：没有验证步骤** → "测试一下是否工作"，implementer 没跑测试就 commit 了。计划必须包含具体命令和期望输出
+
+---
+
+## E — 可执行步骤 (Execution) ★
+
+### Step 1 — Understand Requirements
+
+读取并理解：
+- 功能需求
+- 设计文档或用户描述
+- 验收标准
+- 约束条件
+
+### Step 2 — Explore the Codebase
+
+使用 Hermes tools 理解项目：
+
+```python
+# 理解项目结构
+search_files("*.py", target="files", path="src/")
+
+# 找类似功能
+search_files("similar_pattern", path="src/", file_glob="*.py")
+
+# 检查现有测试
+search_files("*.py", target="files", path="tests/")
+
+# 读关键文件
+read_file("src/app.py")
 ```
 
-**Right size:**
-```markdown
-### Task 1: Create User model with email field
-[10 lines, 1 file]
+### Step 3 — Design Approach
 
-### Task 2: Add password hash field to User
-[8 lines, 1 file]
+决定：
+- 架构模式
+- 文件组织
+- 依赖
+- 测试策略
 
-### Task 3: Create password hashing utility
-[15 lines, 1 file]
-```
+### Step 4 — Write Tasks
 
-## Plan Document Structure
+按顺序创建任务：
+1. Setup/infrastructure
+2. Core functionality（TDD 每个）
+3. Edge cases
+4. Integration
+5. Cleanup/documentation
 
-### Header (Required)
+### Plan Document Structure
 
-Every plan MUST start with:
+**Header（必须）：**
 
 ```markdown
 # [Feature Name] Implementation Plan
@@ -81,11 +145,9 @@ Every plan MUST start with:
 ---
 ```
 
-### Task Structure
+**Task Structure：**
 
-Each task follows this format:
-
-````markdown
+```markdown
 ### Task N: [Descriptive Name]
 
 **Objective:** What this task accomplishes (one sentence)
@@ -126,73 +188,28 @@ Expected: PASS
 git add tests/path/test.py src/path/file.py
 git commit -m "feat: add specific feature"
 ```
-````
-
-## Writing Process
-
-### Step 1: Understand Requirements
-
-Read and understand:
-- Feature requirements
-- Design documents or user description
-- Acceptance criteria
-- Constraints
-
-### Step 2: Explore the Codebase
-
-Use Hermes tools to understand the project:
-
-```python
-# Understand project structure
-search_files("*.py", target="files", path="src/")
-
-# Look at similar features
-search_files("similar_pattern", path="src/", file_glob="*.py")
-
-# Check existing tests
-search_files("*.py", target="files", path="tests/")
-
-# Read key files
-read_file("src/app.py")
 ```
 
-### Step 3: Design Approach
+### Step 5 — Add Complete Details
 
-Decide:
-- Architecture pattern
-- File organization
-- Dependencies needed
-- Testing strategy
+每个任务包含：
+- **精确文件路径**（不是"配置文件"而是 `src/config/settings.py`）
+- **完整代码示例**（不是"添加验证"而是具体代码）
+- **精确命令**含期望输出
+- **验证步骤**证明任务工作
 
-### Step 4: Write Tasks
+### Step 6 — Review the Plan
 
-Create tasks in order:
-1. Setup/infrastructure
-2. Core functionality (TDD for each)
-3. Edge cases
-4. Integration
-5. Cleanup/documentation
+检查：
+- [ ] 任务顺序合理
+- [ ] 每个任务小而清晰（2-5 min）
+- [ ] 文件路径精确
+- [ ] 代码示例完整（可 copy-paste）
+- [ ] 命令精确含期望输出
+- [ ] 无缺失上下文
+- [ ] DRY, YAGNI, TDD 原则应用
 
-### Step 5: Add Complete Details
-
-For each task, include:
-- **Exact file paths** (not "the config file" but `src/config/settings.py`)
-- **Complete code examples** (not "add validation" but the actual code)
-- **Exact commands** with expected output
-- **Verification steps** that prove the task works
-
-### Step 6: Review the Plan
-
-Check:
-- [ ] Tasks are sequential and logical
-- [ ] Each task is bite-sized (2-5 min)
-- [ ] File paths are exact
-- [ ] Code examples are complete (copy-pasteable)
-- [ ] Commands are exact with expected output
-- [ ] No missing context
-- [ ] DRY, YAGNI, TDD principles applied
-
-### Step 7: Save the Plan
+### Step 7 — Save the Plan
 
 ```bash
 mkdir -p docs/plans
@@ -201,85 +218,53 @@ git add docs/plans/
 git commit -m "docs: add implementation plan for [feature]"
 ```
 
+---
+
+## B — 边界 (Boundary) ★
+
+**反场景（NOT this skill）：**
+- 一步就完成 → 不需要做计划
+- 已有计划 → 不重复写
+- 用户已知道怎么做 → 不要过度计划
+
+**邻近方法论区分：**
+- **本 skill vs spec-driven-development**：spec 产出规格，plan 基于规格产出实施计划
+- **本 skill vs subagent-driven-development**：本 skill 创建计划，subagent-driven-development 执行计划
+- **本 skill vs idea-refine**：idea-refine 精炼想法，plan 基于想法做实施规划
+
+**常见错误：**
+| 错误 | 正确 |
+|------|------|
+| "Add authentication" | "Create User model with email and password_hash fields" |
+| "Add validation function" | 完整 function 代码 |
+| "Test it works" | `pytest tests/test_auth.py -v`，期望：3 passed |
+| "Create the model file" | Create: `src/models/user.py` |
+
+---
+
 ## Principles
 
 ### DRY (Don't Repeat Yourself)
-
 **Bad:** Copy-paste validation in 3 places
 **Good:** Extract validation function, use everywhere
 
 ### YAGNI (You Aren't Gonna Need It)
-
 **Bad:** Add "flexibility" for future requirements
 **Good:** Implement only what's needed now
 
-```python
-# Bad — YAGNI violation
-class User:
-    def __init__(self, name, email):
-        self.name = name
-        self.email = email
-        self.preferences = {}  # Not needed yet!
-        self.metadata = {}     # Not needed yet!
-
-# Good — YAGNI
-class User:
-    def __init__(self, name, email):
-        self.name = name
-        self.email = email
-```
-
 ### TDD (Test-Driven Development)
-
-Every task that produces code should include the full TDD cycle:
-1. Write failing test
-2. Run to verify failure
-3. Write minimal code
-4. Run to verify pass
-
-See `test-driven-development` skill for details.
+每个产生代码的任务都包含完整 TDD cycle：
+1. 写失败测试
+2. 跑测试验证失败
+3. 写最小实现
+4. 跑测试验证通过
 
 ### Frequent Commits
-
-Commit after every task:
+每个任务后 commit：
 ```bash
 git add [files]
 git commit -m "type: description"
 ```
-
-## Common Mistakes
-
-### Vague Tasks
-
-**Bad:** "Add authentication"
-**Good:** "Create User model with email and password_hash fields"
-
-### Incomplete Code
-
-**Bad:** "Step 1: Add validation function"
-**Good:** "Step 1: Add validation function" followed by the complete function code
-
-### Missing Verification
-
-**Bad:** "Step 3: Test it works"
-**Good:** "Step 3: Run `pytest tests/test_auth.py -v`, expected: 3 passed"
-
-### Missing File Paths
-
-**Bad:** "Create the model file"
-**Good:** "Create: `src/models/user.py`"
-
-## Execution Handoff
-
-After saving the plan, offer the execution approach:
-
-**"Plan complete and saved. Ready to execute using subagent-driven-development — I'll dispatch a fresh subagent per task with two-stage review (spec compliance then code quality). Shall I proceed?"**
-
-When executing, use the `subagent-driven-development` skill:
-- Fresh `delegate_task` per task with full context
-- Spec compliance review after each task
-- Code quality review after spec passes
-- Proceed only when both reviews approve
 
 ## Remember
 

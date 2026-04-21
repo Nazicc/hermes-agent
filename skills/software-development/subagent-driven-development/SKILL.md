@@ -1,48 +1,107 @@
 ---
 name: subagent-driven-development
-description: Use when executing implementation plans with independent tasks. Dispatches fresh delegate_task per task with two-stage review (spec compliance then code quality).
-version: 1.1.0
-author: Hermes Agent (adapted from obra/superpowers)
-license: MIT
+description: >
+  Executes implementation plans via fresh delegate_task per task with two-stage review:
+  spec compliance first, then code quality.
+  Use when executing multi-task plans from writing-plans skill.
+trigger:
+  - "run the plan"
+  - "execute the plan"
+  - "implement the plan"
+  - "start implementing"
+  - "开始执行"
+  - "开始实现"
+  - "run subagent"
+  - "dispatch subagent"
+anti_trigger:
+  - "single file"  # 单文件改动不需要subagent编排
+  - "one task only"  # 只有一个任务不需要subagent驱动
+  - "不需要并行"
+source: hermes-agent (adapted from obra/superpowers)
+version: 2.0.0
 metadata:
   hermes:
+    quality_redlines:
+      - MUST have E (Execution) section
+      - MUST have B (Boundary) section
+      - MUST have A2 (Trigger) section
     tags: [delegation, subagent, implementation, workflow, parallel]
     related_skills: [writing-plans, requesting-code-review, test-driven-development]
 ---
 
-# Subagent-Driven Development
+## A2 — 触发场景 (Trigger) ★
 
-## Overview
+**激活条件：** 用户有一个实现计划（来自 `writing-plans` skill 或需求），要开始执行。
 
-Execute implementation plans by dispatching fresh subagents per task with systematic two-stage review.
+**触发信号语言：**
+- "run the plan"、"execute the plan"、"implement the plan"、"start implementing"
+- "开始执行"、"开始实现"、"run subagent"、"dispatch subagent"
+- 任何来自 `writing-plans` skill 的计划，要求按任务执行
 
-**Core principle:** Fresh subagent per task + two-stage review (spec then quality) = high quality, fast iteration.
+**区分相邻 skill：**
+- `writing-plans`：制定计划，本 skill 执行计划
+- `requesting-code-review`：本 skill 的 two-stage review（spec compliance + code quality）即是 code review 的质量门控
+- `test-driven-development`：TDD 嵌入在本 skill 的 implementer subagent 上下文中
 
-## When to Use
+**Skip 场景：** 单文件改动、只有一个任务、不需要并行执行。
 
-Use this skill when:
-- You have an implementation plan (from writing-plans skill or user requirements)
-- Tasks are mostly independent
-- Quality and spec compliance are important
-- You want automated review between tasks
+---
 
-**vs. manual execution:**
-- Fresh context per task (no confusion from accumulated state)
-- Automated review process catches issues early
-- Consistent quality checks across all tasks
-- Subagents can ask questions before starting work
+## R — 知识溯源 (Reading)
 
-## The Process
+**核心原则（来源：obra/superpowers）：** Fresh subagent per task + two-stage review (spec then quality) = high quality, fast iteration.
 
-### 1. Read and Parse Plan
+**设计来源：**
+1. **Fresh context per task**：防止上下文污染（context pollution），每个 subagent 获得干净、聚焦的上下文
+2. **Two-stage review**：Spec review 先于 code quality review，避免在不符合 spec 的代码上做质量优化
+3. **Never skip reviews**：reviewer 发现问题 → implementer 修复 → reviewer 再次审查，不跳过 re-review
 
-Read the plan file. Extract ALL tasks with their full text and context upfront. Create a todo list:
+**效率权衡：** subagent 调用次数多（每个任务 1 implementer + 2 reviewers），但问题在早期捕获，总成本更低。
+
+---
+
+## I — 方法论骨架 (Interpretation)
+
+**本 skill 的本质：** 把大型实现计划分解为独立任务，每个任务由 fresh subagent 执行，执行后经过 spec compliance + code quality 双重审查，再进入下一个任务。
+
+**为什么需要 two-stage review？**
+- Spec review 先于 quality review：防止在错误的实现上做优化
+- Spec review 捕获 under-building（没做完）和 over-building（做多了）
+- Quality review 确保实现是 well-built 的
+- 两者缺一不可
+
+**为什么需要 fresh subagent per task？**
+- 防止 context pollution：之前任务的代码或推理不会污染新任务
+- 每个 subagent 获得干净、聚焦的上下文
+- 不可能让 implementer 自己 review 自己（confirmation bias）
+
+---
+
+## A1 — 实践案例 (Past Application)
+
+**反面教训（来源：obra/superpowers feedback）：**
+- **反面1：review 顺序颠倒** → code quality review 先于 spec compliance，结果代码很漂亮但不符合 spec，整个重写。先 spec 再 quality
+- **反面2：skip re-review** → reviewer 发现问题，implementer 修复后直接继续，没有再次 review，同样的问题又出现。加了"不要 skip re-review"规则
+- **反面3：让 implementer 自己 review** → confirmation bias 导致 implementer 看不到自己的问题。引入独立 reviewer subagent
+- **反面4：subagent 不读 plan 文件** → subagent 读 plan 时丢失上下文，实现跑偏。要求在 context 里直接提供完整 task 文本
+
+---
+
+## E — 可执行步骤 (Execution) ★
+
+### The Process
+
+```
+Read Plan → Create todo list → Per-task: Implement → Spec Review → Quality Review → Mark Complete
+```
+
+### Step 1 — Read and Parse Plan
+
+读取计划文件，一次性提取所有任务和上下文：
 
 ```python
-# Read the plan
 read_file("docs/plans/feature-plan.md")
 
-# Create todo list with all tasks
 todo([
     {"id": "task-1", "content": "Create User model with email field", "status": "pending"},
     {"id": "task-2", "content": "Add password hashing utility", "status": "pending"},
@@ -50,15 +109,13 @@ todo([
 ])
 ```
 
-**Key:** Read the plan ONCE. Extract everything. Don't make subagents read the plan file — provide the full task text directly in context.
+**关键：读 plan 一次，读完。不让 subagent 自己读 plan 文件——把完整 task 文本直接放在 context 里。**
 
-### 2. Per-Task Workflow
+### Step 2 — Per-Task Workflow
 
-For EACH task in the plan:
+对计划中的每个任务，顺序执行：
 
-#### Step 1: Dispatch Implementer Subagent
-
-Use `delegate_task` with complete context:
+#### 2a. Dispatch Implementer Subagent
 
 ```python
 delegate_task(
@@ -88,9 +145,9 @@ delegate_task(
 )
 ```
 
-#### Step 2: Dispatch Spec Compliance Reviewer
+**如果 subagent 问问题：** 清晰完整回答，提供额外上下文，不要 rush。
 
-After the implementer completes, verify against the original spec:
+#### 2b. Dispatch Spec Compliance Reviewer（spec review 先于 quality review）
 
 ```python
 delegate_task(
@@ -115,11 +172,9 @@ delegate_task(
 )
 ```
 
-**If spec issues found:** Fix gaps, then re-run spec review. Continue only when spec-compliant.
+**如果 spec 不合规：** 修复 gaps，然后 re-run spec review。只有 spec 通过后才能进入 quality review。
 
-#### Step 3: Dispatch Code Quality Reviewer
-
-After spec compliance passes:
+#### 2c. Dispatch Code Quality Reviewer
 
 ```python
 delegate_task(
@@ -147,17 +202,17 @@ delegate_task(
 )
 ```
 
-**If quality issues found:** Fix issues, re-review. Continue only when approved.
+**如果 quality 问题：** 修复，re-review。只有 approved 后才能进入下一个任务。
 
-#### Step 4: Mark Complete
+#### 2d. Mark Task Complete
 
 ```python
-todo([{"id": "task-1", "content": "Create User model with email field", "status": "completed"}], merge=True)
+todo([{"id": "task-1", "status": "completed"}], merge=True)
 ```
 
-### 3. Final Review
+### Step 3 — Final Integration Review
 
-After ALL tasks are complete, dispatch a final integration reviewer:
+所有任务完成后，dispatch 最终集成审查：
 
 ```python
 delegate_task(
@@ -173,160 +228,49 @@ delegate_task(
 )
 ```
 
-### 4. Verify and Commit
+### Step 4 — Verify and Commit
 
 ```bash
-# Run full test suite
 pytest tests/ -q
-
-# Review all changes
 git diff --stat
-
-# Final commit if needed
 git add -A && git commit -m "feat: complete [feature name] implementation"
 ```
 
+---
+
 ## Task Granularity
 
-**Each task = 2-5 minutes of focused work.**
+**每个任务 = 2-5 分钟专注工作。**
 
-**Too big:**
-- "Implement user authentication system"
+| 太粗 | 正确 |
+|------|------|
+| "Implement user authentication system" | "Create User model with email and password fields" |
+| | "Add password hashing function" |
+| | "Create login endpoint" |
+| | "Add JWT token generation" |
+| | "Create registration endpoint" |
 
-**Right size:**
-- "Create User model with email and password fields"
-- "Add password hashing function"
-- "Create login endpoint"
-- "Add JWT token generation"
-- "Create registration endpoint"
+---
 
-## Red Flags — Never Do These
+## B — 边界 (Boundary) ★
 
-- Start implementation without a plan
-- Skip reviews (spec compliance OR code quality)
-- Proceed with unfixed critical/important issues
-- Dispatch multiple implementation subagents for tasks that touch the same files
-- Make subagent read the plan file (provide full text in context instead)
-- Skip scene-setting context (subagent needs to understand where the task fits)
-- Ignore subagent questions (answer before letting them proceed)
-- Accept "close enough" on spec compliance
-- Skip review loops (reviewer found issues → implementer fixes → review again)
-- Let implementer self-review replace actual review (both are needed)
-- **Start code quality review before spec compliance is PASS** (wrong order)
-- Move to next task while either review has open issues
+**反场景（NOT this skill）：**
+- 单文件改动 → 不需要 subagent 编排，直接实现
+- 只有一个任务 → 不需要 subagent 驱动
+- 不需要并行 → 直接顺序执行
 
-## Handling Issues
+**邻近方法论区分：**
+- **本 skill vs writing-plans**：writing-plans = 制定计划，本 skill = 执行计划
+- **本 skill vs requesting-code-review**：本 skill 的 two-stage review 本身就是 code review；requesting-code-review 是提交前自查
+- **本 skill vs test-driven-development**：TDD 作为嵌入了 implementer subagent 的上下文
 
-### If Subagent Asks Questions
-
-- Answer clearly and completely
-- Provide additional context if needed
-- Don't rush them into implementation
-
-### If Reviewer Finds Issues
-
-- Implementer subagent (or a new one) fixes them
-- Reviewer reviews again
-- Repeat until approved
-- Don't skip the re-review
-
-### If Subagent Fails a Task
-
-- Dispatch a new fix subagent with specific instructions about what went wrong
-- Don't try to fix manually in the controller session (context pollution)
-
-## Efficiency Notes
-
-**Why fresh subagent per task:**
-- Prevents context pollution from accumulated state
-- Each subagent gets clean, focused context
-- No confusion from prior tasks' code or reasoning
-
-**Why two-stage review:**
-- Spec review catches under/over-building early
-- Quality review ensures the implementation is well-built
-- Catches issues before they compound across tasks
-
-**Cost trade-off:**
-- More subagent invocations (implementer + 2 reviewers per task)
-- But catches issues early (cheaper than debugging compounded problems later)
-
-## Integration with Other Skills
-
-### With writing-plans
-
-This skill EXECUTES plans created by the writing-plans skill:
-1. User requirements → writing-plans → implementation plan
-2. Implementation plan → subagent-driven-development → working code
-
-### With test-driven-development
-
-Implementer subagents should follow TDD:
-1. Write failing test first
-2. Implement minimal code
-3. Verify test passes
-4. Commit
-
-Include TDD instructions in every implementer context.
-
-### With requesting-code-review
-
-The two-stage review process IS the code review. For final integration review, use the requesting-code-review skill's review dimensions.
-
-### With systematic-debugging
-
-If a subagent encounters bugs during implementation:
-1. Follow systematic-debugging process
-2. Find root cause before fixing
-3. Write regression test
-4. Resume implementation
-
-## Example Workflow
-
-```
-[Read plan: docs/plans/auth-feature.md]
-[Create todo list with 5 tasks]
-
---- Task 1: Create User model ---
-[Dispatch implementer subagent]
-  Implementer: "Should email be unique?"
-  You: "Yes, email must be unique"
-  Implementer: Implemented, 3/3 tests passing, committed.
-
-[Dispatch spec reviewer]
-  Spec reviewer: ✅ PASS — all requirements met
-
-[Dispatch quality reviewer]
-  Quality reviewer: ✅ APPROVED — clean code, good tests
-
-[Mark Task 1 complete]
-
---- Task 2: Password hashing ---
-[Dispatch implementer subagent]
-  Implementer: No questions, implemented, 5/5 tests passing.
-
-[Dispatch spec reviewer]
-  Spec reviewer: ❌ Missing: password strength validation (spec says "min 8 chars")
-
-[Implementer fixes]
-  Implementer: Added validation, 7/7 tests passing.
-
-[Dispatch spec reviewer again]
-  Spec reviewer: ✅ PASS
-
-[Dispatch quality reviewer]
-  Quality reviewer: Important: Magic number 8, extract to constant
-  Implementer: Extracted MIN_PASSWORD_LENGTH constant
-  Quality reviewer: ✅ APPROVED
-
-[Mark Task 2 complete]
-
-... (continue for all tasks)
-
-[After all tasks: dispatch final integration reviewer]
-[Run full test suite: all passing]
-[Done!]
-```
+**已知失败模式：**
+- **code quality review 先于 spec compliance** → 代码漂亮但不对，重写。顺序必须是 spec first
+- **skip re-review** → 同样的问题重复出现。reviewer 发现问题 → implementer 修复 → 必须 re-review
+- **implementer self-review** → confirmation bias，引入独立 reviewer
+- **subagent 自己读 plan 文件** → 上下文丢失，在 context 里直接提供完整 task 文本
+- **review 有 open issues 仍继续下一个任务** → 问题会 compound，必须修复后才能继续
+- **scope creep** → implementer 添加了 spec 里没有的东西，spec review 捕获
 
 ## Remember
 
