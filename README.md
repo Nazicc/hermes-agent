@@ -121,6 +121,8 @@ Hermes Agent's built-in learning loop supercharged:
 - **跨会话记忆** — FTS5 会话搜索 + LLM 摘要，跨会话召回决策
 - **Memory persistence** — agent nudges itself to write memories after significant work
 - **记忆持久化** — Agent 在重要工作后主动写记忆
+- **Topic-change guard** — `_TopicTracker` performs token-overlap detection before every prefetch (threshold 0.6); new topics skip prefetch to prevent stale context pollution
+- **Topic-change guard** — `_TopicTracker` 在每次 prefetch 前做 token overlap 检测（阈值 0.6），新话题跳过 prefetch 避免旧上下文污染
 
 ---
 
