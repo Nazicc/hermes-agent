@@ -293,3 +293,93 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODELS_URL = f"{OPENROUTER_BASE_URL}/models"
 
 AI_GATEWAY_BASE_URL = "https://ai-gateway.vercel.sh/v1"
+
+
+# =============================================================================
+# Multi-Provider Model Catalog
+# =============================================================================
+# Model IDs, benchmark scores, and Base URLs for Anthropic-compatible providers.
+# Sources: SWE-bench Verified (Feb 2026), Terminal-Bench 2.0 (Feb 2026).
+# Use this table when adding or comparing provider integrations.
+#
+# Provider       Model ID             SWE-bench  TB2     Base URL (Anthropic compat)
+# ------------   ------------------  ---------  ------  ---------------------------------
+# Anthropic      claude-sonnet-4-6    79.6%      59.1%   (default, no base_url)
+# MiniMax        MiniMax-M2.5          80.2%       -     api.minimaxi.com/anthropic
+# GLM (Zhipu)    glm-5                77.8%       -     open.bigmodel.cn/api/anthropic
+# Kimi (Moon.)   kimi-k2.5            76.8%       -     api.moonshot.cn/anthropic
+# DeepSeek       deepseek-chat(v3.2)  73.0%       -     api.deepseek.com/anthropic
+#
+# International endpoints (no region suffix):
+#   MiniMax:     https://api.minimax.io/anthropic
+#   GLM:         https://api.z.ai/api/anthropic
+#   Kimi:        https://platform.moonshot.ai/anthropic
+#   DeepSeek:    https://api.deepseek.com/anthropic
+#
+# China mainland endpoints (served from within mainland CN):
+#   MiniMax:     https://api.minimaxi.com/anthropic
+#   GLM:         https://open.bigmodel.cn/api/anthropic
+#   Kimi:        https://api.moonshot.cn/anthropic
+#   DeepSeek:    https://api.deepseek.com/anthropic  (same endpoint globally)
+#
+# NOTE: MiniMax sk-cp- keys MUST use https://api.minimaxi.com/v1 (OpenAI compat),
+#       not the /anthropic endpoint. The /anthropic endpoint is for
+#       Anthropic-format (sk-ant-) keys only.
+# =============================================================================
+
+PROVIDER_MODEL_CATALOG: list[dict] = [
+    {
+        "provider": "Anthropic",
+        "model_id": "claude-sonnet-4-6",
+        "model_id_aliases": ["claude-opus-4.6", "claude-sonnet-4-5", "claude-opus-4-5"],
+        "swe_bench": "79.6%",
+        "terminal_bench": "59.1%",
+        "base_url": None,  # use default
+        "key_format": "sk-ant-",
+        "notes": "Default provider. Use for production.",
+    },
+    {
+        "provider": "MiniMax",
+        "model_id": "MiniMax-M2.5",
+        "model_id_aliases": ["MiniMax-M2.1"],
+        "swe_bench": "80.2%",
+        "terminal_bench": None,
+        "base_url": "https://api.minimaxi.com/anthropic",
+        "base_url_intl": "https://api.minimax.io/anthropic",
+        "key_format": "sk-ant-",
+        "notes": "Best SWE-bench score. sk-ant- keys use /anthropic endpoint. "
+                 "sk-cp- keys (Token Plan) MUST use https://api.minimaxi.com/v1 (OpenAI compat).",
+    },
+    {
+        "provider": "GLM (Zhipu AI)",
+        "model_id": "glm-5",
+        "model_id_aliases": ["glm-4", "glm-3"],
+        "swe_bench": "77.8%",
+        "terminal_bench": None,
+        "base_url": "https://open.bigmodel.cn/api/anthropic",
+        "base_url_intl": "https://api.z.ai/api/anthropic",
+        "key_format": "sk-ant-",
+        "notes": "Strong Chinese-language performance. Zhipu is also known as Charcter.AI's parent.",
+    },
+    {
+        "provider": "Kimi (Moonshot AI)",
+        "model_id": "kimi-k2.5",
+        "model_id_aliases": ["kimi-k2", "moonshot-v1"],
+        "swe_bench": "76.8%",
+        "terminal_bench": None,
+        "base_url": "https://api.moonshot.cn/anthropic",
+        "base_url_intl": "https://platform.moonshot.ai/anthropic",
+        "key_format": "sk-ant-",
+        "notes": "Good long-context performance (200K context window).",
+    },
+    {
+        "provider": "DeepSeek",
+        "model_id": "deepseek-chat",
+        "model_id_aliases": ["deepseek-chat-v3", "deepseek-coder"],
+        "swe_bench": "73.0%",
+        "terminal_bench": None,
+        "base_url": "https://api.deepseek.com/anthropic",
+        "key_format": "sk-ant-",
+        "notes": "Lowest cost. Single global endpoint (no regional split).",
+    },
+]

@@ -136,6 +136,34 @@ DANGEROUS_PATTERNS = [
     # a script is first made executable then immediately run. The script
     # content may contain dangerous commands that individual patterns miss.
     (r'\bchmod\s+\+x\b.*[;&|]+\s*\./', "chmod +x followed by immediate execution"),
+    # Interactive/login shell: opens a shell with user environment (-i: interactive,
+    # -l: login, -s: pass-through). These bypass HERMES_YOLO_MODE and can source
+    # ~/.bashrc ~/.profile etc. — attacker's shell profile could be injected.
+    (r'\b(bash|sh|zsh|ksh)\s+-[ils]+\b', "interactive/login shell invocation"),
+    # Disk shredding — permanent data destruction beyond normal rm
+    (r'\bshred\b.*-[fu]\b', "shred with overwrite/destination flag"),
+    (r'\bdd\b.*of=/dev/(sd|hd|nvme|vd)', "dd writing to raw disk device"),
+    # Switch to another user (runuser bypasses pam_env in some configs)
+    (r'\brunuser\b', "runuser — switch user context"),
+    # Fork bomb — classic DoS that crashes the entire system
+    (r':\s*\(\s*\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:', "fork bomb — system DoS"),
+    # Kubernetes: delete pod/rc/deployment (service disruption, not data destruction)
+    (r'\bkubectl\s+delete\b.*(pod|rc|deployment|service)\b.*--force\b', "kubectl force delete (service disruption)"),
+    # Docker system prune — removes ALL stopped containers, unused networks,
+    # dangling images, and build cache. More destructive than it sounds.
+    (r'\bdocker\s+system\s+prune\b', "docker system prune — removes all stopped containers and caches"),
+    # docker rmi -f: force remove images (data loss, especially build cache)
+    (r'\bdocker\s+rmi\s+-[f]+\b', "docker rmi force — delete images"),
+    # Kill all processes belonging to a user (system-wide DoS)
+    (r'\bkillall\s+-9\s+-u\b', "killall all processes by user"),
+    # nuke: wipe a target directory/filesystem with secure erase patterns
+    # (common in dockerfiles and cleanup scripts — almost always destructive)
+    (r'\bnuke\b', "nuke — destructive target-wipe script pattern"),
+    # wipe: secure file deletion tool
+    (r'\bwipe\s+-[rfi]+\b', "wipe — secure file deletion"),
+    # dd over block device (already covered by 'dd.*of=/dev/sd' above,
+    # adding explicit /zero and /urandom variants for clarity)
+    (r'\bdd\s+.*of=/dev/(zero|urandom)\b', "dd writing to /dev/zero or /dev/urandom (not destructive but suspicious)"),
 ]
 
 
@@ -607,10 +635,10 @@ def check_dangerous_command(command: str, env_type: str,
     Returns:
         {"approved": True/False, "message": str or None, ...}
     """
-    if env_type in ("docker", "singularity", "modal", "daytona"):
-        return {"approved": True, "message": None}
-
-    # --yolo: bypass all approval prompts. Gateway /yolo is session-scoped;
+    # Note: container envs (docker/singularity/modal/daytona) are NOT skipped here.
+    # Dangerous regex patterns (rm -rf /, DROP DATABASE, etc.) apply regardless of
+    # environment — a container's root filesystem is still the user's data.
+    # Only tirith shell-exec checks are skipped for containers (see below).
     # CLI --yolo remains process-scoped via the env var for local use.
     if os.getenv("HERMES_YOLO_MODE") or is_current_session_yolo_enabled():
         return {"approved": True, "message": None}
@@ -721,9 +749,11 @@ def check_all_command_guards(command: str, env_type: str,
     a gateway force=True replay from bypassing one check when only the
     other was shown to the user.
     """
-    # Skip containers for both checks
-    if env_type in ("docker", "singularity", "modal", "daytona"):
-        return {"approved": True, "message": None}
+    # Containers (docker/singularity/modal/daytona): skip tirith (its shell-exec analysis
+    # is designed for the host shell, not container internals), but still run
+    # dangerous-pattern detection — patterns like rm -rf / or DROP DATABASE are
+    # just as destructive inside a container.
+    _skip_tirith = env_type in ("docker", "singularity", "modal", "daytona")
 
     # --yolo or approvals.mode=off: bypass all approval prompts.
     # Gateway /yolo is session-scoped; CLI --yolo remains process-scoped.
@@ -760,12 +790,14 @@ def check_all_command_guards(command: str, env_type: str,
 
     # Tirith check — wrapper guarantees no raise for expected failures.
     # Only catch ImportError (module not installed).
+    # Skip tirith for container envs: it analyses the host shell, not container internals.
     tirith_result = {"action": "allow", "findings": [], "summary": ""}
-    try:
-        from tools.tirith_security import check_command_security
-        tirith_result = check_command_security(command)
-    except ImportError:
-        pass  # tirith module not installed — allow
+    if not _skip_tirith:
+        try:
+            from tools.tirith_security import check_command_security
+            tirith_result = check_command_security(command)
+        except ImportError:
+            pass  # tirith module not installed — allow
 
     # Dangerous command check (detection only, no approval)
     is_dangerous, pattern_key, description = detect_dangerous_command(command)
