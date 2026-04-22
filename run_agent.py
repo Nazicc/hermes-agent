@@ -585,6 +585,61 @@ def _qwen_portal_headers() -> dict:
     }
 
 
+# ===========================================================================
+# Topic-change tracker — Icarus pre_llm_call pattern
+# Detects topic shift via token overlap. When overlap < 0.6 the new message
+# is considered a new topic → skip memory prefetch to avoid stale context
+# from the previous topic polluting the new one.
+# ===========================================================================
+class _TopicTracker:
+    """
+    Tracks topic continuity across user messages.
+
+    Algorithm (from Icarus fabric-retrieve.py):
+      overlap = len(common_tokens) / max(len(previous_topic_tokens), 1)
+      if overlap < 0.6 → new topic → skip prefetch
+
+    This is a cheap heuristic (set-of-words + len()) with no external
+    dependency, running synchronously before every prefetch_all() call.
+    """
+
+    OVERLAP_THRESHOLD = 0.6  # Icarus default
+
+    def __init__(self):
+        self._prev_topic_tokens: set = set()
+
+    def is_new_topic(self, user_message: str) -> bool:
+        """
+        Return True if user_message represents a new topic (token overlap
+        with the previous topic is below threshold → skip memory prefetch).
+        """
+        if not user_message or not self._prev_topic_tokens:
+            # First message or empty → always treat as new topic (don't skip)
+            self._update(user_message)
+            return True
+
+        msg_tokens = self._tokenize(user_message)
+        if not msg_tokens:
+            self._update(user_message)
+            return True
+
+        common = self._prev_topic_tokens & msg_tokens
+        overlap = len(common) / max(len(self._prev_topic_tokens), 1)
+
+        is_new = overlap < self.OVERLAP_THRESHOLD
+        self._update(user_message)
+        return is_new
+
+    def _tokenize(self, text: str) -> set:
+        """Split on whitespace and punctuation, lowercase, filter short tokens."""
+        import re
+        tokens = re.sub(r"[^\w\s]", " ", text.lower()).split()
+        return {t for t in tokens if len(t) >= 3}
+
+    def _update(self, user_message: str):
+        self._prev_topic_tokens = self._tokenize(user_message) if user_message else set()
+
+
 class AIAgent:
     """
     AI Agent with tool calling capabilities.
@@ -1221,7 +1276,11 @@ class AIAgent:
         
         # Track conversation messages for session logging
         self._session_messages: List[Dict[str, Any]] = []
-        
+
+        # Topic-change tracker: skips memory prefetch when topic is stable
+        # (inspired by Icarus pre_llm_call topic-overlap detection)
+        self._topic_tracker = _TopicTracker()
+
         # Cached system prompt -- built once per session, only rebuilt on compression
         self._cached_system_prompt: Optional[str] = None
         
@@ -9019,11 +9078,21 @@ class AIAgent:
         # prefetch_all() on each tool call (10 tool calls = 10x latency + cost).
         # Use original_user_message (clean input) — user_message may contain
         # injected skill content that bloats / breaks provider queries.
+        #
+        # Topic-change guard (Icarus pre_llm_call pattern):
+        # When the new message shares >40% common tokens with the previous
+        # topic, we treat it as the SAME topic → do NOT skip prefetch.
+        # When overlap <40% (new topic), skip prefetch to avoid stale context
+        # from the old topic polluting the new one.
         _ext_prefetch_cache = ""
         if self._memory_manager:
             try:
                 _query = original_user_message if isinstance(original_user_message, str) else ""
-                _ext_prefetch_cache = self._memory_manager.prefetch_all(_query) or ""
+                _is_new_topic = self._topic_tracker.is_new_topic(_query)
+                if not _is_new_topic:
+                    # Topic is stable — normal prefetch
+                    _ext_prefetch_cache = self._memory_manager.prefetch_all(_query) or ""
+                # else: new topic → skip prefetch, leave cache empty
             except Exception:
                 pass
 
