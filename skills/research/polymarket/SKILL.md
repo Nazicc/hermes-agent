@@ -1,9 +1,14 @@
 ---
 name: polymarket
-description: Query Polymarket prediction market data — search markets, get prices, orderbooks, and price history. Read-only via public REST APIs, no API key needed.
+description: Query Polymarket prediction market data — search markets, get prices,
+  orderbooks, and price history. Read-only via public REST APIs, no API key needed.
 version: 1.0.0
 author: Hermes Agent + Teknium
-tags: [polymarket, prediction-markets, market-data, trading]
+tags:
+- polymarket
+- prediction-markets
+- market-data
+- trading
 ---
 
 # Polymarket — Prediction Market Data

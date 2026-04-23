@@ -24,6 +24,7 @@ anti_trigger:
 source: hermes-agent (inspired by anthropics/claude-code plugins/code-simplifier)
 version: 2.0.0
 metadata:
+  sources: []
   hermes:
     quality_redlines:
       - MUST have E (Execution) section

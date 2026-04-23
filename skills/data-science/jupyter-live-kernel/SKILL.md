@@ -8,8 +8,8 @@ description: >
   a live Jupyter kernel. No new tools required.
 version: 1.0.0
 author: Hermes Agent
-license: MIT
 metadata:
+  sources: []
   hermes:
     tags: [jupyter, notebook, repl, data-science, exploration, iterative]
     category: data-science

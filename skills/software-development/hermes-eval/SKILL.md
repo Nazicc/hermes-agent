@@ -18,6 +18,7 @@ anti_trigger:
   - "怎么写"
 version: 2.0.0
 metadata:
+  sources: []
   hermes:
     tags: [evaluation, testing, quality, benchmark, skill-assessment]
     related_skills: [skills-evolution-from-research, systematic-debugging, test-driven-development]

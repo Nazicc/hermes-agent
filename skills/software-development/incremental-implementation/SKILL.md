@@ -23,6 +23,7 @@ anti_trigger:
 source: hermes-agent
 version: 2.0.0
 metadata:
+  sources: []
   hermes:
     quality_redlines:
       - MUST have E (Execution) section

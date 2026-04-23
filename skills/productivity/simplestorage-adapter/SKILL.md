@@ -19,6 +19,7 @@ anti_trigger:
   - "怎么用"
 version: 2.0.0
 metadata:
+  sources: []
   hermes:
     tags: [storage, postgresql, pgvector, lancedb, simplemem, deployment]
     related_skills: [simplerag-siliconflow]

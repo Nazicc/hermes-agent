@@ -4,6 +4,7 @@ description: Manus-style file-based planning wrapper. Creates task_plan.md, find
 user-invocable: true
 version: 2.0.0
 metadata:
+  sources: []
   hermes:
     quality_redlines:
       - MUST have E (Execution) section
