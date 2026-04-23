@@ -1,13 +1,20 @@
 ---
 name: context-fundamentals
-description: This skill was imported from muratcankoylan/Agent-Skills-for-Context-Engineering.
+description: This skill should be used when the user asks to "understand context", "explain context windows", "design agent architecture", "debug context issues", "optimize context usage", or discusses context components, attention mechanics, progressive disclosure, or context budgeting. Provides foundational understanding of context engineering for AI agent systems.
 license: MIT
-metadata:
-  hermes:
-    tags: ["context-engineering", "agent-architecture"]
-    related_skills: ["context-degradation", "context-compression"]
+metadata.hermes:
+  evolver: context-eng-v1
+  source: muratcankoylan/Agent-Skills
+  installed: 2026-04-24
+  related_skills:
+    - skills/context-degradation
+    - skills/context-compression
+    - skills/multi-agent-patterns
+    - skills/bdi-mental-states
+    - skills/latent-briefing
+    - skills/memory-systems
+    - skills/tool-design
 ---
-
 
 # Context Engineering Fundamentals
 

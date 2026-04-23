@@ -1,13 +1,20 @@
 ---
 name: multi-agent-patterns
-description: This skill was imported from muratcankoylan/Agent-Skills-for-Context-Engineering.
+description: This skill should be used when the user asks to "design multi-agent system", "implement supervisor pattern", "create swarm architecture", "coordinate multiple agents", or mentions multi-agent patterns, context isolation, agent handoffs, sub-agents, or parallel agent execution.
 license: MIT
-metadata:
-  hermes:
-    tags: ["context-engineering", "agent-architecture"]
-    related_skills: ["bdi-mental-states"]
+metadata.hermes:
+  evolver: context-eng-v1
+  source: muratcankoylan/Agent-Skills
+  installed: 2026-04-24
+  related_skills:
+    - skills/context-fundamentals
+    - skills/context-degradation
+    - skills/context-compression
+    - skills/bdi-mental-states
+    - skills/latent-briefing
+    - skills/memory-systems
+    - skills/tool-design
 ---
-
 
 # Multi-Agent Architecture Patterns
 

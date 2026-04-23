@@ -1,13 +1,20 @@
 ---
 name: bdi-mental-states
-description: This skill was imported from muratcankoylan/Agent-Skills-for-Context-Engineering.
+description: This skill should be used when the user asks to "model agent mental states", "implement BDI architecture", "create belief-desire-intention models", "transform RDF to beliefs", "build cognitive agent", or mentions BDI ontology, mental state modeling, rational agency, or neuro-symbolic AI integration.
 license: MIT
-metadata:
-  hermes:
-    tags: ["context-engineering", "agent-architecture"]
-    related_skills: ["multi-agent-patterns"]
+metadata.hermes:
+  evolver: context-eng-v1
+  source: muratcankoylan/Agent-Skills
+  installed: 2026-04-24
+  related_skills:
+    - skills/context-fundamentals
+    - skills/context-degradation
+    - skills/context-compression
+    - skills/multi-agent-patterns
+    - skills/latent-briefing
+    - skills/memory-systems
+    - skills/tool-design
 ---
-
 
 # BDI Mental State Modeling
 

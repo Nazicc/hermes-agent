@@ -1,13 +1,20 @@
 ---
 name: context-degradation
-description: This skill was imported from muratcankoylan/Agent-Skills-for-Context-Engineering.
+description: This skill should be used when the user asks to "diagnose context problems", "fix lost-in-middle issues", "debug agent failures", "understand context poisoning", or mentions context degradation, attention patterns, context clash, context confusion, or agent performance degradation. Provides patterns for recognizing and mitigating context failures.
 license: MIT
-metadata:
-  hermes:
-    tags: ["context-engineering", "agent-architecture"]
-    related_skills: ["context-fundamentals", "context-compression"]
+metadata.hermes:
+  evolver: context-eng-v1
+  source: muratcankoylan/Agent-Skills
+  installed: 2026-04-24
+  related_skills:
+    - skills/context-fundamentals
+    - skills/context-compression
+    - skills/multi-agent-patterns
+    - skills/bdi-mental-states
+    - skills/latent-briefing
+    - skills/memory-systems
+    - skills/tool-design
 ---
-
 
 # Context Degradation Patterns
 

@@ -1,13 +1,20 @@
 ---
 name: context-compression
-description: This skill was imported from muratcankoylan/Agent-Skills-for-Context-Engineering.
+description: This skill should be used when the user asks to "compress context", "summarize conversation history", "implement compaction", "reduce token usage", or mentions context compression, structured summarization, tokens-per-task optimization, or long-running agent sessions exceeding context limits.
 license: MIT
-metadata:
-  hermes:
-    tags: ["context-engineering", "agent-architecture"]
-    related_skills: ["context-fundamentals", "context-degradation"]
+metadata.hermes:
+  evolver: context-eng-v1
+  source: muratcankoylan/Agent-Skills
+  installed: 2026-04-24
+  related_skills:
+    - skills/context-fundamentals
+    - skills/context-degradation
+    - skills/multi-agent-patterns
+    - skills/bdi-mental-states
+    - skills/latent-briefing
+    - skills/memory-systems
+    - skills/tool-design
 ---
-
 
 # Context Compression Strategies
 
@@ -26,7 +33,8 @@ Activate this skill when:
 
 Context compression trades token savings against information loss. Select from three production-ready approaches based on session characteristics:
 
-1. **Anchored Iterative Summarization**: Implement this for long-running sessions where file tracking matters. Maintain structured, persistent summaries with explicit sections for session intent, file modifications, decisions, and next steps. When compression triggers, summarize only the newly-truncated span and merge with the existing summary rather than regenerating from scratch. This prevents drift that accumulates when summaries are regenerated wholesale — each regeneration risks losing details the model considers low-priority but the task requires. Structure forces preservation because dedicated sections act as checklists the summarizer must populate, catching silent information loss.
+1. **Anchored Iterative Summarization**: Implement this for long-running sessions where file tracking matters. Maintain structured, persistent summaries with explicit sections for session intent, file modifications, decisions, and next steps. When compression triggers, summarize only the newly-truncated span and merge with the existing summary rather than regenerating from scratch. This prevents drift that accumulates when summaries are regenerated wholesale — each regeneration risks losing deta
+    ils the model considers low-priority but the task requires. Structure forces preservation because dedicated sections act as checklists the summarizer must populate, catching silent information loss.
 
 2. **Opaque Compression**: Reserve this for short sessions where re-fetching costs are low and maximum token savings are required. It produces compressed representations optimized for reconstruction fidelity, achieving 99%+ compression ratios but sacrificing interpretability entirely. The tradeoff matters: there is no way to verify what was preserved without running probe-based evaluation, so never use this when debugging or artifact tracking is critical.
 
@@ -36,7 +44,8 @@ Context compression trades token savings against information loss. Select from t
 
 ### Optimize for Tokens-Per-Task, Not Tokens-Per-Request
 
-Measure total tokens consumed from task start to completion, not tokens per individual request. When compression drops file paths, error messages, or decision rationale, the agent must re-explore, re-read files, and re-derive conclusions — wasting far more tokens than the compression saved. A strategy saving 0.5% more tokens per request but causing 20% more re-fetching costs more overall. Track re-fetching frequency as the primary quality signal: if the agent repeatedly asks to re-read files it already processed, compression is too aggressive.
+Measure total tokens consumed from task start to completion, not tokens per individual request. When compression drops file paths, error messages, or decision rationale, the agent must re-explore, re-read files, and re-derive conclusions — wasting far more tokens than the compression saved. A strategy saving 0.5% more tokens per request but causing 20% more re-fetching costs more overall. Track re-fetching frequency as the primary quality signal: if the agent repeatedly asks to re-read files it 
+    already processed, compression is too aggressive.
 
 ### Solve the Artifact Trail Problem First
 
