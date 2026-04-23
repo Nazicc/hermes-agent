@@ -1,12 +1,24 @@
 ---
 name: spec-driven-development
-description: >
+description: >-
   Spec-driven development (SDD) for AI coding assistants — inspired by OpenSpec (Fission-AI/OpenSpec).
   Use when starting a new project, feature, or significant change and no specification exists yet.
   Use when requirements are unclear, ambiguous, or only exist as a vague idea.
   Integrates: proposal → specs → design → tasks → implement → regression tests → bug-free verify → launch.
-version: 3.0.0
-author: Hermes Agent (inspired by Fission-AI/OpenSpec)
+trigger:
+  - spec
+  - specification
+  - SDD
+  - "write a spec"
+  - "before code"
+  - "no spec"
+  - "requirements are unclear"
+anti_trigger:
+  - debugging
+  - "quick fix"
+  - "typo"
+source: hermes-agent
+version: 3.1.0
 license: MIT
 metadata:
   hermes:
@@ -36,6 +48,23 @@ proposal.md → specs/*.md → design.md → tasks.md → IMPLEMENT → REGRESSI
 ```
 
 Each artifact has explicit dependencies — later artifacts cannot be created before earlier ones are complete.
+
+---
+
+## Surface Assumptions First
+
+Before writing any spec content, **always surface your assumptions**:
+
+```
+ASSUMPTIONS I'M MAKING:
+1. This is a web application (not native mobile)
+2. Authentication uses session-based cookies (not JWT)
+3. The database is PostgreSQL (based on existing Prisma schema)
+4. We're targeting modern browsers only (no IE11)
+→ Correct me now or I'll proceed with these.
+```
+
+Don't silently fill in ambiguous requirements. The spec's entire purpose is to surface misunderstandings *before* code gets written — assumptions are the most dangerous form of misunderstanding.
 
 ---
 
@@ -72,34 +101,64 @@ How do we undo this if it goes wrong?
 
 **File**: `SPEC/specs/<feature-name>.md` (one file per logical feature)
 
+### Reframe Instructions as Success Criteria
+
+When receiving vague requirements, translate them into concrete conditions:
+
+```
+REQUIREMENT: "Make the dashboard faster"
+
+REFRAMED SUCCESS CRITERIA:
+- Dashboard LCP < 2.5s on 4G connection
+- Initial data load completes in < 500ms
+- No layout shift during load (CLS < 0.1)
+→ Are these the right targets?
+```
+
+This lets you loop, retry, and problem-solve toward a clear goal rather than guessing what "faster" means.
+
+### Six Core Spec Areas
+
 ```markdown
-# Spec: <feature name>
+# Spec: [Project/Feature Name]
 
-## Overview
-One-paragraph summary of what this feature does.
+## Objective
+[What we're building and why. User stories or acceptance criteria.]
 
-## Functional Requirements
+## Tech Stack
+[Framework, language, key dependencies with versions]
 
+## Commands
+[Build, test, lint, dev — full commands]
+
+## Project Structure
+[Directory layout with descriptions]
+
+## Code Style
+[Example snippet + key conventions]
+
+## Testing Strategy
+[Framework, test locations, coverage requirements, test levels]
+
+## Boundaries
+- Always: [...]
+- Ask first: [...]
+- Never: [...]
+
+## Success Criteria
+[How we'll know this is done — specific, testable conditions]
+
+## Open Questions
+[Anything unresolved that needs human input]
+```
+
+Functional requirements use Gherkin-style:
+
+```
 ### FR-1: <requirement title>
-**Given** [precondition]  
-**When** [action]  
+**Given** [precondition]
+**When** [action]
 **Then** [observable outcome]
-
-### FR-2: ...
-(Use Gherkin-style scenarios: Given/When/Then)
-
-## Non-Functional Requirements
-- Performance: ...
-- Security: ...
-- Compatibility: ...
-
-## Edge Cases
-- EC-1: <case> → <behavior>
-- EC-2: ...
-
-## Acceptance Criteria
-- [ ] Criterion 1
-- [ ] Criterion 2
 ```
 
 **Rule**: Specs must be concrete and verifiable. "The system should be fast" is not a spec. "Response time < 200ms at P99 under 1000 RPS" is.
@@ -123,19 +182,15 @@ One-paragraph summary of what this feature does.
 [Endpoints, request/response shapes, error codes]
 
 ## Dependencies
-- External services / libraries
+[- External services / libraries
 - Internal modules
-- Configuration changes
+- Configuration changes]
 
 ## Security Considerations
-- Input validation
+[- Input validation
 - Auth/authz
 - Data handling
-- Secrets management
-
-## Cross-Platform Concerns
-- macOS / Linux / Windows differences
-- Browser compatibility (if applicable)
+- Secrets management]
 
 ## Migration / Backward Compatibility
 How does this change affect existing users? Is migration required?
@@ -168,12 +223,17 @@ How does this change affect existing users? Is migration required?
 ### Documentation
 - [ ] Task 6
 
-### Cross-Platform Verification
-- [ ] Task 7 (Windows path handling, if applicable)
-
 ## Task Dependencies
 - Task 3 requires Task 1 to be complete
 - Task 4 can run in parallel with Task 3
+```
+
+**Task template:**
+```markdown
+- [ ] Task: [Description]
+  - Acceptance: [What must be true when done]
+  - Verify: [How to confirm — test command, build, manual check]
+  - Files: [Which files will be touched]
 ```
 
 **Rule**: Tasks must be small enough to complete in a single session (< 2 hours). If a task is larger, break it down.
@@ -229,10 +289,6 @@ Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`
 ## Feature-Specific Regression
 - [ ] Existing users can still do X (from previous specs)
 - [ ] No performance regression on key paths
-
-## Manual Verification (if no automated test exists)
-- [ ] Feature X manually tested on [platform]
-- [ ] Edge case Y manually verified
 ```
 
 **Rule**: If the regression test suite has ANY failures after your change, you cannot proceed to launch until they are fixed or explicitly waived with a documented reason.
@@ -260,17 +316,12 @@ Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`
 ## Performance
 - [ ] No obvious N+1 queries (if database is involved)
 - [ ] No synchronous operations that could block the event loop (Node.js)
-- [ ] Startup time unchanged (if applicable)
 
 ## Security
 - [ ] No SQL injection vectors
 - [ ] No XSS vectors
 - [ ] Auth tokens not logged
-- [ ] File paths sanitized (especially on Windows)
-
-## Compatibility
-- [ ] Works on all supported platforms (macOS, Linux, Windows)
-- [ ] No regression for existing users
+- [ ] File paths sanitized
 
 ## Rollback
 - [ ] Rollback plan from proposal is documented and tested
@@ -307,6 +358,33 @@ terraform plan -out=plan.tfplan
 
 ---
 
+## Keeping the Spec Alive
+
+The spec is a living document, not a one-time artifact:
+
+- **Update when decisions change** — If you discover the data model needs to change, update the spec first, then implement.
+- **Update when scope changes** — Features added or cut should be reflected in the spec.
+- **Commit the spec** — The spec belongs in version control alongside the code.
+- **Reference the spec in PRs** — Link back to the spec section that each PR implements.
+
+---
+
+## Common Rationalizations
+
+These are the ways agents (and humans) rationalize skipping the spec process. Recognize them and push back.
+
+| Rationalization | Reality |
+|---|---|
+| "This is simple, I don't need a spec" | Simple tasks don't need *long* specs, but they still need acceptance criteria. A two-line spec is fine. |
+| "I'll write the spec after I code it" | That's documentation, not specification. The spec's value is in forcing clarity *before* code. |
+| "The spec will slow us down" | A 15-minute spec prevents hours of rework. Waterfall in 15 minutes beats debugging in 15 hours. |
+| "Requirements will change anyway" | That's why the spec is a living document. An outdated spec is still better than no spec. |
+| "The user knows what they want" | Even clear requests have implicit assumptions. The spec surfaces those assumptions. |
+| "It's just a small change" | Small changes still break things. The smaller the change, the less excuse to skip the spec. |
+| "I'll figure it out as I go" | Without a spec, "figuring it out" means making unilateral decisions that should be reviewed. |
+
+---
+
 ## Anti-Patterns (Do NOT Do)
 
 1. **Spec after code** — Writing the spec *after* writing the code defeats the purpose. The spec must exist before code.
@@ -315,6 +393,22 @@ terraform plan -out=plan.tfplan
 4. **No rollback plan** — Every non-trivial change needs a rollback plan in the proposal.
 5. **Implementing outside the spec** — If you found something the spec missed, update the spec first.
 6. **Skipping design for "simple" changes** — Most bugs come from "simple" changes that weren't fully thought through.
+7. **Silent assumptions** — If you assumed something without writing it down, the spec will mislead implementers.
+
+---
+
+## Red Flags
+
+These are observable signs the spec process is being violated:
+
+- Starting to write code without any written requirements
+- Asking "should I just start building?" before clarifying what "done" means
+- Implementing features not mentioned in any spec or task list
+- Making architectural decisions without documenting them
+- Skipping the spec because "it's obvious what to build"
+- A spec that has no concrete, testable acceptance criteria
+- No "Not Doing" list making trade-offs explicit
+- Regression test failures ignored before launch
 
 ---
 
