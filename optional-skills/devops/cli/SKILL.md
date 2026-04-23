@@ -1,5 +1,5 @@
 ---
-name: inference-sh-cli
+name: cli
 description: "Run 150+ AI apps via inference.sh CLI (infsh) — image generation, video creation, LLMs, search, 3D, social automation. Uses the terminal tool. Triggers: inference.sh, infsh, ai apps, flux, veo, image generation, video generation, seedream, seedance, tavily"
 version: 1.0.0
 author: okaris
