@@ -290,6 +290,44 @@ hermes-agent/
 
 ---
 
+## Changelog
+
+## 更新日志
+
+<!-- 日志由每日 23:00 cron 自动生成，请勿手动修改此区块 -->
+
+#### 2026-04-23
+#### Hermes Agent 仓库
+- feat(skills): add SkillClaw engineering principles (skill-evolution-principles, systematic-debugging v2) (477a99c5)
+- feat(skills): integrate addyosmani/agent-skills production-grade content (a1fb14b8)
+- docs(hermes-evolver-integration): add SkillClaw shared group setup guide (0d36c2c3)
+- skills: add skillclaw-shared-group skill (local+OSS/S3 setup, operator/member workflows) (e41072ac)
+- feat(spec-driven-development): rewrite with OpenSpec pipeline — proposal→specs→design→tasks→implement→regression→verify→launch (c654883e)
+- feat(spec-driven-development): upgrade to v3.0 with OpenSpec artifact pipeline (45608aae)
+- fix(skills): add license and metadata fields to all 80 skills (0 errors, 0 warnings) (50d07f8d)
+- fix(skills): align name fields with directory names (10 errors fixed) (5cebf92d)
+- fix(docs): redact API key placeholder (8dbb8de6)
+- fix(skills): batch fixes from validate_skills.py analysis (743fe316)
+- feat: add hermes-agent-self-evolution (DSPy+GEPA, 139 tests pass) (b883ba8f)
+- chore: add hermes-agent-self-evolution to gitignore (0daa2c12)
+- feat(skills): add pr-review skill + validate_skills.py from MiniMax-AI/skills analysis (48879240)
+#### Skills 仓库
+- feat(skills): add SkillClaw engineering principles (skill-evolution-principles, systematic-debugging v2) (477a99c5)
+- feat(skills): integrate addyosmani/agent-skills production-grade content (a1fb14b8)
+- docs(hermes-evolver-integration): add SkillClaw shared group setup guide (0d36c2c3)
+- skills: add skillclaw-shared-group skill (local+OSS/S3 setup, operator/member workflows) (e41072ac)
+- feat(spec-driven-development): rewrite with OpenSpec pipeline — proposal→specs→design→tasks→implement→regression→verify→launch (c654883e)
+- feat(spec-driven-development): upgrade to v3.0 with OpenSpec artifact pipeline (45608aae)
+- fix(skills): add license and metadata fields to all 80 skills (0 errors, 0 warnings) (50d07f8d)
+- fix(skills): align name fields with directory names (10 errors fixed) (5cebf92d)
+- fix(docs): redact API key placeholder (8dbb8de6)
+- fix(skills): batch fixes from validate_skills.py analysis (743fe316)
+- feat: add hermes-agent-self-evolution (DSPy+GEPA, 139 tests pass) (b883ba8f)
+- chore: add hermes-agent-self-evolution to gitignore (0daa2c12)
+- feat(skills): add pr-review skill + validate_skills.py from MiniMax-AI/skills analysis (48879240)
+
+<!-- CHANGELOG_MARKER -->
+
 ## License
 
 ## 许可证
