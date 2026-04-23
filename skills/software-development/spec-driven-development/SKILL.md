@@ -1,187 +1,332 @@
 ---
 name: spec-driven-development
 description: >
-  Creates specs before coding using a structured artifact pipeline. Use when starting a new
-  project, feature, or significant change and no specification exists yet. Use when requirements
-  are unclear, ambiguous, or only exist as a vague idea. Inspired by OpenSpec (Fission-AI/OpenSpec,
-  42k stars) — the canonical spec-driven development framework.
-trigger:
-  - "spec"
-  - "write a spec"
-  - "create a spec"
-  - "starting a new project"
-  - "开始新项目"
-  - "写规格"
-  - "规格说明书"
-  - "specification"
-  - "PRD"
-  - "需求文档"
-anti_trigger:
-  - "single line"  # 单行改动不需要spec
-  - "typo"  # typo修正不需要spec
-  - "trivial"  # trivial改动不需要spec
-  - "already have a spec"  # 已有spec时不需要再写
-source: hermes-agent
+  Spec-driven development (SDD) for AI coding assistants — inspired by OpenSpec (Fission-AI/OpenSpec).
+  Use when starting a new project, feature, or significant change and no specification exists yet.
+  Use when requirements are unclear, ambiguous, or only exist as a vague idea.
+  Integrates: proposal → specs → design → tasks → implement → regression tests → bug-free verify → launch.
 version: 3.0.0
+author: Hermes Agent (inspired by Fission-AI/OpenSpec)
 license: MIT
 metadata:
   hermes:
-    tags: [Spec, Requirements, SDD, Artifact-Pipeline, OpenSpec]
-    related_skills: [source-driven-development, idea-refine, incremental-implementation]
-    quality_redlines:
-      - MUST have E (Execution) section
-      - MUST have B (Boundary) section
-      - MUST have A2 (Trigger) section
+    tags: [spec, specification, SDD, OpenSpec, development, proposal, design, tasks, regression, launch]
+    related_skills: [test-driven-development, systematic-debugging, writing-plans, incremental-implementation, requesting-code-review]
 ---
 
 # Spec-Driven Development (SDD)
 
-## Core Principle
-**Spec before code** — Write specifications first, then implement. Never start coding without a shared spec.
+Inspired by [OpenSpec](https://github.com/Fission-AI/OpenSpec) — an AI-native spec-driven development framework.
 
-## Reference: OpenSpec Artifact Pipeline
-OpenSpec (github.com/Fission-AI/OpenSpec, 42k stars) defines the canonical artifact pipeline.
-Hermes implements the core stages:
+## Core Philosophy
 
 ```
-proposal.md → specs/*.md → design.md → tasks.md → implementation
-   (提案)        (详细规格)      (技术设计)     (任务清单)     (执行)
+fluid not rigid → iterative not waterfall → easy not complex →
+built for brownfield not just greenfield → scalable from personal projects to enterprises
 ```
 
-- Each artifact depends on its predecessors (tasks.md requires specs AND design)
-- Specs are **iterative** — revise as understanding grows
-- **Fluid, not rigid** — don't force phase gates; work on what makes sense
+Every non-trivial change goes through a structured artifact pipeline before any code is written.
 
-## Artifact Formats
+---
 
-### 1. proposal.md — The Why
-**Purpose**: Justify the change. Why are we doing this? What problem does it solve?
+## Artifact Pipeline
+
+```
+proposal.md → specs/*.md → design.md → tasks.md → IMPLEMENT → REGRESSION → VERIFY → LAUNCH
+```
+
+Each artifact has explicit dependencies — later artifacts cannot be created before earlier ones are complete.
+
+---
+
+## Phase 1: Proposal
+
+**File**: `SPEC/proposal.md`
+
+Answer the "why" before the "what":
 
 ```markdown
-# Proposal: [short title]
+# Proposal: <short title>
 
-## Problem Statement
-What pain point or opportunity motivates this?
+## Problem
+What problem does this solve? Why does it matter now?
 
 ## Success Criteria
-- [ ] Measurable outcome 1
-- [ ] Measurable outcome 2
+How do we know this succeeded? (measurable outcomes)
 
-## Out of Scope
-What this proposal does NOT cover.
+## Scope
+What is in scope? What is explicitly out of scope?
 
 ## Alternatives Considered
-Why other approaches were rejected.
+What else was considered? Why was this approach chosen?
 
-## Impact
-- Breaking changes?
-- Migration needed?
-- Rollback complexity?
+## Rollback Plan
+How do we undo this if it goes wrong?
 ```
 
-### 2. specs/*.md — The What (Requirements + Scenarios)
-**Purpose**: Detailed functional requirements with concrete usage scenarios.
+**Rule**: A proposal with no clear problem statement and success criteria is incomplete. Do not proceed to specs.
+
+---
+
+## Phase 2: Specifications
+
+**File**: `SPEC/specs/<feature-name>.md` (one file per logical feature)
 
 ```markdown
-# Spec: [feature name]
+# Spec: <feature name>
+
+## Overview
+One-paragraph summary of what this feature does.
 
 ## Functional Requirements
-1. **REQ-1**: [requirement statement]
-   - Mechanism: HOW this is implemented (not just WHAT)
-   - Acceptance: conditions that must be true
 
-2. **REQ-2**: ...
+### FR-1: <requirement title>
+**Given** [precondition]  
+**When** [action]  
+**Then** [observable outcome]
 
-## User Scenarios
-### Scenario 1: [title]
-**Given** [precondition]
-**When** [action]
-**Then** [observable result]
+### FR-2: ...
+(Use Gherkin-style scenarios: Given/When/Then)
 
-### Scenario 2: [title]
-...
+## Non-Functional Requirements
+- Performance: ...
+- Security: ...
+- Compatibility: ...
 
 ## Edge Cases
-- EC-1: [boundary condition handling]
+- EC-1: <case> → <behavior>
 - EC-2: ...
 
-## Cross-Cutting Concerns
-- Error handling strategy
-- Logging/observability
-- Security considerations
+## Acceptance Criteria
+- [ ] Criterion 1
+- [ ] Criterion 2
 ```
 
-### 3. design.md — The How (Technical Design)
-**Purpose**: Technical architecture and implementation approach.
+**Rule**: Specs must be concrete and verifiable. "The system should be fast" is not a spec. "Response time < 200ms at P99 under 1000 RPS" is.
+
+---
+
+## Phase 3: Technical Design
+
+**File**: `SPEC/design.md`
 
 ```markdown
-# Design: [feature name]
+# Design: <title>
 
 ## Architecture
-[High-level component diagram or description]
+[Diagrams, ASCII art, or text description of the architecture]
 
 ## Data Model
-[Any new entities, schema changes, API shapes]
+[Schema, ER diagram, or data structures]
 
-## API Surface
-[If applicable — endpoints, message types]
+## API Design (if applicable)
+[Endpoints, request/response shapes, error codes]
 
-## Key Design Decisions
-1. **Decision**: [description]
-   - **Rationale**: why this approach
-   - **Alternatives**: what was considered and rejected
+## Dependencies
+- External services / libraries
+- Internal modules
+- Configuration changes
 
-## Platform Considerations
-- macOS / Linux / Windows handling
-- Any environment-specific behavior
+## Security Considerations
+- Input validation
+- Auth/authz
+- Data handling
+- Secrets management
 
-## Security & Performance
-[If non-trivial]
+## Cross-Platform Concerns
+- macOS / Linux / Windows differences
+- Browser compatibility (if applicable)
+
+## Migration / Backward Compatibility
+How does this change affect existing users? Is migration required?
 ```
 
-### 4. tasks.md — The Checklist (Source of Truth for Implementation)
-**Purpose**: Granular checklist that drives implementation. AI reads this and marks items complete.
+**Rule**: Design must specify the "how" with enough detail that a developer could implement it without asking further questions. "Use a cache" is not a design. "Use an in-memory LRU cache with 1000-entry limit and TTL of 5 minutes, evicted on process restart" is.
+
+---
+
+## Phase 4: Implementation Tasks
+
+**File**: `SPEC/tasks.md`
 
 ```markdown
-# Tasks: [feature name]
+# Tasks: <title>
 
 ## Task Checklist
-- [ ] TASK-1: [specific actionable item]
-- [ ] TASK-2: [specific actionable item]
-- [ ] TASK-3.1: [subtask of TASK-3]
-- [ ] TASK-3.2: [subtask of TASK-3]
 
-## Verification
-- [ ] All tasks complete
-- [ ] Tests pass
-- [ ] Docs updated
-- [ ] No regression
+### Setup
+- [ ] Task 1
+- [ ] Task 2
+
+### Core Implementation
+- [ ] Task 3
+- [ ] Task 4
+
+### Testing
+- [ ] Task 5
+
+### Documentation
+- [ ] Task 6
+
+### Cross-Platform Verification
+- [ ] Task 7 (Windows path handling, if applicable)
+
+## Task Dependencies
+- Task 3 requires Task 1 to be complete
+- Task 4 can run in parallel with Task 3
 ```
 
-**Critical rule**: Tasks must be **specific and checkable** — not vague goals. Each task should be verifiable as done or not done.
+**Rule**: Tasks must be small enough to complete in a single session (< 2 hours). If a task is larger, break it down.
 
-## SDD Workflow in Hermes
+---
 
-1. **Assess** — Is there already a spec? Is this change large enough to need one?
-2. **Detect triggers** — If any anti-trigger fires, skip spec creation
-3. **Create artifacts** — Write proposal, specs, design, tasks in that order
-4. **Implement** — Read tasks.md and check off items as you go
-5. **Verify** — Ensure all tasks complete, all scenarios covered
-6. **Update spec** — If implementation reveals spec gaps, revise artifacts
+## Phase 5: Implementation
 
-## Quality Gates (all MUST pass before implementation)
+**Process**:
 
-| Gate | Check |
-|------|-------|
-| **E (Execution)** | Can you actually implement this? Resources/time/tools available? |
-| **B (Boundary)** | Are limits and edge cases defined? |
-| **A2 (Trigger)** | Is the activation condition specific enough? |
-| **Scenarios** | Do scenarios cover happy path AND failure modes? |
-| **Tasks** | Is every REQ linked to at least one task? |
+1. Read `SPEC/tasks.md` — pick the next incomplete task
+2. Read the relevant spec section — implement exactly what is specified
+3. If TDD skill is available: follow RED-GREEN-REFACTOR cycle
+4. Mark each completed task with `✓` in `tasks.md`
+5. Write a commit after each completed task
 
-## OpenSpec-Inspired Principles
+**Code rules**:
+- Zero tolerance for TODO comments in code — either do it or file an issue
+- No commented-out dead code — delete it
+- All new code must pass linting before commit
+- Type signatures must be explicit (no `any` without documentation)
 
-- **Fluid over rigid**: Don't force waterfall stages. Propose → iterate → implement when ready
-- **Brownfield-first**: Always consider existing code, don't design in a greenfield vacuum
-- **Cross-platform**: Path handling, line endings, env-specific behavior must be in specs
-- **Mechanisms over features**: "HOW it works" matters as much as "WHAT it does"
+**Commit format**:
+```
+<type>(<scope>): <short description>
+
+[body — what changed and why]
+```
+
+Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`
+
+---
+
+## Phase 6: Regression Tests
+
+**Before marking any feature complete**, run the full regression test suite.
+
+**Definition**: A regression test is any test that verifies existing, unchanged functionality still works.
+
+```
+# Regression test checklist
+
+## Smoke Tests
+- [ ] Core build succeeds: `make build` / `pnpm build` / etc.
+- [ ] All unit tests pass: `make test` / `pnpm test` / etc.
+- [ ] No new lint errors introduced
+
+## Integration Tests (if applicable)
+- [ ] API contracts still honored
+- [ ] Database migrations run cleanly
+- [ ] Auth flows unchanged
+
+## Feature-Specific Regression
+- [ ] Existing users can still do X (from previous specs)
+- [ ] No performance regression on key paths
+
+## Manual Verification (if no automated test exists)
+- [ ] Feature X manually tested on [platform]
+- [ ] Edge case Y manually verified
+```
+
+**Rule**: If the regression test suite has ANY failures after your change, you cannot proceed to launch until they are fixed or explicitly waived with a documented reason.
+
+---
+
+## Phase 7: Bug-Free Verification
+
+**Before launch**, perform a final verification sweep:
+
+```markdown
+# Launch Verification Checklist
+
+## Correctness
+- [ ] No `console.error` or unhandled exceptions in code paths
+- [ ] All error cases have user-friendly messages (no raw stack traces)
+- [ ] Input validation covers all edge cases from the spec
+- [ ] No hardcoded secrets, credentials, or API keys
+
+## Testing Coverage
+- [ ] New code has unit test coverage ≥ 80% (or documented exception)
+- [ ] All acceptance criteria from spec are covered by tests
+- [ ] Edge cases from spec are tested
+
+## Performance
+- [ ] No obvious N+1 queries (if database is involved)
+- [ ] No synchronous operations that could block the event loop (Node.js)
+- [ ] Startup time unchanged (if applicable)
+
+## Security
+- [ ] No SQL injection vectors
+- [ ] No XSS vectors
+- [ ] Auth tokens not logged
+- [ ] File paths sanitized (especially on Windows)
+
+## Compatibility
+- [ ] Works on all supported platforms (macOS, Linux, Windows)
+- [ ] No regression for existing users
+
+## Rollback
+- [ ] Rollback plan from proposal is documented and tested
+- [ ] Migrations are reversible (or marked as one-way with justification)
+```
+
+---
+
+## Phase 8: Launch
+
+**Pre-launch**:
+1. Final verification checklist complete
+2. Regression tests green
+3. Code review approved (see `requesting-code-review` skill)
+4. Changelog updated
+5. Version bumped (if applicable)
+
+**Launch execution**:
+```bash
+# Verify everything is clean
+make test && make build && echo "Ready to deploy"
+
+# For infrastructure changes — dry run first
+terraform plan -out=plan.tfplan
+
+# Deploy with rollback capability
+./scripts/deploy.sh --rollback-on-failure
+```
+
+**Post-launch**:
+- Monitor error rates for 30 minutes
+- Verify success criteria from proposal are being met
+- Update proposal with actual outcomes
+
+---
+
+## Anti-Patterns (Do NOT Do)
+
+1. **Spec after code** — Writing the spec *after* writing the code defeats the purpose. The spec must exist before code.
+2. **Vague acceptance criteria** — "Works correctly" is not acceptance criteria. Be measurable.
+3. **Skipping regression tests** — "The change is small, it won't break anything" — it will.
+4. **No rollback plan** — Every non-trivial change needs a rollback plan in the proposal.
+5. **Implementing outside the spec** — If you found something the spec missed, update the spec first.
+6. **Skipping design for "simple" changes** — Most bugs come from "simple" changes that weren't fully thought through.
+
+---
+
+## Quick Reference
+
+| Phase | File | Question Answered | Do Not Proceed If |
+|-------|------|-------------------|-------------------|
+| Proposal | `SPEC/proposal.md` | Why? What problem? | No problem statement |
+| Specs | `SPEC/specs/*.md` | What exactly? | No concrete acceptance criteria |
+| Design | `SPEC/design.md` | How? | No implementation detail |
+| Tasks | `SPEC/tasks.md` | Who does what? | Tasks > 2 hours each |
+| Implement | — | — | Spec not finalized |
+| Regression | — | Did we break existing? | Any test failure |
+| Verify | — | Is it truly done? | Any checklist item unmet |
+| Launch | — | — | Verification incomplete |
