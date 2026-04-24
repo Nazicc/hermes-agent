@@ -1,0 +1,13 @@
+SPEC.md
+pyproject.toml
+skills_quality.egg-info/PKG-INFO
+skills_quality.egg-info/SOURCES.txt
+skills_quality.egg-info/dependency_links.txt
+skills_quality.egg-info/requires.txt
+skills_quality.egg-info/top_level.txt
+tests/test_classification.py
+tests/test_pedagogic_scoring.py
+tests/test_references.py
+tests/test_report.py
+tests/test_structure.py
+tests/test_triggers.py
