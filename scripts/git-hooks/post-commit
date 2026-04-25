@@ -1,0 +1,3 @@
+#!/bin/sh
+# POST-COMMIT: Auto-deploy prerun scripts after every commit
+exec scripts/deploy_prerun.sh

@@ -1,0 +1,30 @@
+#!/bin/sh
+# PRE-COMMIT: Block commits containing secrets / sensitive information
+
+SCAN_PATTERN='sk-[a-zA-Z0-9]{32,}|ghp_[a-zA-Z0-9]{36,}|Bearer [a-zA-Z0-9_-]{20,}'
+
+echo "🔍 Scanning staged files for sensitive information ..."
+FOUND=0
+
+# Skip hook templates, Makefile, and binary/data files
+SKIP_PATTERN='scripts/git-hooks/|Makefile|\.(png|jpg|jpeg|gif|mp4|mp3|wav|zip|tar|gz|pdf|docx|xlsx|yml|yaml|md)$'
+
+for file in $(git diff --cached --name-only | grep -vE "$SKIP_PATTERN"); do
+    if [ -f "$file" ]; then
+        MATCHES=$(grep -iE "$SCAN_PATTERN" "$file" 2>/dev/null || true)
+        if [ -n "$MATCHES" ]; then
+            echo "❌ BLOCKED: Secret found in '$file':"
+            echo "$MATCHES" | head -3 | sed 's/^/   /'
+            FOUND=1
+        fi
+    fi
+done
+
+if [ $FOUND -eq 1 ]; then
+    echo "❌ Commit blocked: sensitive information detected."
+    echo "   Override with: git commit --no-verify"
+    exit 1
+fi
+
+echo "✅ No secrets detected."
+exit 0

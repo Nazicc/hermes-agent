@@ -12,7 +12,19 @@
 HERMES_SCRIPTS := $(HOME)/.hermes/scripts
 VENV_PYTHON := $(shell cat .python-version 2>/dev/null || echo "venv/bin/python3")
 
-.PHONY: deploy deploy-rss test test-rss
+.PHONY: deploy deploy-rss test test-rss setup
+
+setup: deploy
+	@echo "Installing git hooks ..."
+	@cp scripts/git-hooks/pre-commit .git/hooks/pre-commit
+	@cp scripts/git-hooks/post-commit .git/hooks/post-commit
+	@chmod +x .git/hooks/pre-commit .git/hooks/post-commit
+	@echo "  ✅ pre-commit (secret scanner) installed"
+	@echo "  ✅ post-commit (auto-deploy) installed"
+	@echo ""
+	@echo "Done! Hooks are active on this machine."
+	@echo "Note: hooks are LOCAL — they don't travel with git push."
+	@echo "On new machines: run 'make setup' after cloning."
 
 deploy: deploy-rss
 
