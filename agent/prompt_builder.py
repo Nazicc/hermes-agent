@@ -919,6 +919,36 @@ def load_soul_md() -> Optional[str]:
         return None
 
 
+# -----------------------------------------------------------------------------------------------
+# agent_memory.md — third persistence anchor alongside evolver + memory tool.
+# Lives at ~/.hermes/agent_memory.md. Loaded into every session's system prompt
+# (unlike MEMORY.md which is read via the memory tool). Use for stable runtime
+# knowledge: API endpoints, environment conventions, tool quirks, user preferences.
+# -----------------------------------------------------------------------------------------------
+
+def load_agent_memory_md(max_chars: int = 5_000) -> Optional[str]:
+    """Load ~/.hermes/agent_memory.md if it exists. Returns None if absent or empty."""
+    try:
+        from hermes_cli.config import ensure_hermes_home
+        ensure_hermes_home()
+    except Exception as e:
+        logger.debug("Could not ensure HERMES_HOME before loading agent_memory.md: %s", e)
+
+    path = get_hermes_home() / "agent_memory.md"
+    if not path.exists():
+        return None
+    try:
+        content = path.read_text(encoding="utf-8").strip()
+        if not content:
+            return None
+        content = _scan_context_content(content, "agent_memory.md")
+        content = _truncate_content(content, "agent_memory.md", max_chars=max_chars)
+        return content
+    except Exception as e:
+        logger.debug("Could not read agent_memory.md from %s: %s", path, e)
+        return None
+
+
 def _load_hermes_md(cwd_path: Path) -> str:
     """.hermes.md / HERMES.md — walk to git root."""
     hermes_md_path = _find_hermes_md(cwd_path)
@@ -1013,11 +1043,13 @@ def build_context_files_prompt(cwd: Optional[str] = None, skip_soul: bool = Fals
       3. CLAUDE.md / claude.md   (cwd only)
       4. .cursorrules / .cursor/rules/*.mdc  (cwd only)
 
-    SOUL.md from HERMES_HOME is independent and always included when present.
-    Each context source is capped at 20,000 chars.
+    Always-included (independent of cwd):
+      - SOUL.md           from HERMES_HOME (identity slot)
+      - agent_memory.md   from HERMES_HOME (stable runtime knowledge, up to 5,000 chars)
 
-    When *skip_soul* is True, SOUL.md is not included here (it was already
-    loaded via ``load_soul_md()`` for the identity slot).
+    Each context source is capped at 20,000 chars (SOUL/AGENTS/CLAUDE) or 5,000 chars
+    (agent_memory.md). When *skip_soul* is True, SOUL.md is not included here (it was
+    already loaded via ``load_soul_md()`` for the identity slot).
     """
     if cwd is None:
         cwd = os.getcwd()
@@ -1040,6 +1072,11 @@ def build_context_files_prompt(cwd: Optional[str] = None, skip_soul: bool = Fals
         soul_content = load_soul_md()
         if soul_content:
             sections.append(soul_content)
+
+    # agent_memory.md — third anchor: stable runtime knowledge injected every session
+    agent_mem = load_agent_memory_md()
+    if agent_mem:
+        sections.append(agent_mem)
 
     if not sections:
         return ""
