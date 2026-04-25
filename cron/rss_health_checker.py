@@ -3,13 +3,13 @@ r"""
 RSS Source Health Checker — cron/rss_health_checker.py
 
 安全资讯日报 cron job 的预检脚本：
-  - 并发检查6个RSS源可用性（httpx + stdlib xml，无 feedparser）
-  - 分类：healthy / degraded / http_error / timeout / unreachable / parse_error
+  - 并发检查6个RSS源可用性（stdlib urllib + xml，无外部依赖）
+  - 分类：healthy / degraded / http_error / timeout / unreachable / parse_error / waf_blocked
   - 输出结构化 JSON 摘要供诊断 / 上游决策
 
 用法:
   python3 rss_health_checker.py              # 打印 summary + JSON
-  python3 rss_health_checker.py --json        # 仅输出 JSON
+  python3 rss_health_checker.py --json       # 仅输出 JSON
   python3 rss_health_checker.py --sources 4hou,Dark\ Reading  # 仅检查指定源
 """
 
@@ -17,15 +17,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import socket
 import sys
 import time
+import urllib.error
+import urllib.request
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
-
-import httpx
-
 
 # =============================================================================
 # RSS 订阅源配置（与 security_news.py 保持一致）
@@ -41,6 +41,12 @@ FEEDS: List[Dict[str, str]] = [
 ]
 
 HEALTHY_SOURCE_MIN_SIZE = 500  # bytes — less than this → degraded
+
+_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/120.0.0.0 Safari/537.36"
+)
 
 
 # =============================================================================
@@ -123,7 +129,7 @@ def _parse_rss_xml(raw_bytes: bytes) -> Tuple[int, List[str]]:
 
 
 # =============================================================================
-# Source Health Checker
+# Source Health Checker  (stdlib urllib — no external dependencies)
 # =============================================================================
 
 class SourceHealthChecker:
@@ -131,27 +137,13 @@ class SourceHealthChecker:
 
     def __init__(self, timeout: int = 15):
         self.timeout = timeout
-        self._client: Optional[httpx.Client] = None
 
-    def _client_(self) -> httpx.Client:
-        if self._client is None:
-            self._client = httpx.Client(
-                timeout=httpx.Timeout(self.timeout, connect=10.0),
-                follow_redirects=True,
-                headers={
-                    "User-Agent": (
-                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                        "AppleWebKit/537.36 (KHTML, like Gecko) "
-                        "Chrome/120.0.0.0 Safari/537.36"
-                    ),
-                },
-            )
-        return self._client
-
-    def close(self):
-        if self._client:
-            self._client.close()
-            self._client = None
+    def _build_request(self, url: str) -> urllib.request.Request:
+        """Build a urllib Request with proper headers."""
+        return urllib.request.Request(
+            url,
+            headers={"User-Agent": _USER_AGENT},
+        )
 
     def check(self, url: str, name: str = "", tag: str = "") -> Dict[str, Any]:
         """
@@ -161,9 +153,10 @@ class SourceHealthChecker:
           healthy     — HTTP 200, size >= 500, XML 有条目
           degraded    — HTTP 200, size < 500, 条目正常
           http_error  — HTTP 4xx / 5xx
-          timeout     — httpx TimeoutException
+          timeout     — socket.timeout / urllib timeout
           unreachable — 连接错误（DNS / Refused / etc）
           parse_error — HTTP 200 但 XML 无条目
+          waf_blocked — content-type 是 text/html（WAF / JS 挑战页）
         """
         start = time.time()
         result: Dict[str, Any] = {
@@ -179,28 +172,30 @@ class SourceHealthChecker:
         }
 
         try:
-            client = self._client_()
-            response = client.get(url)
+            request = self._build_request(url)
+            # urllib.request.urlopen(timeout=) applies to both connect and read
+            response = urllib.request.urlopen(request, timeout=self.timeout)
             elapsed_ms = int((time.time() - start) * 1000)
             result["response_time_ms"] = elapsed_ms
-            result["http_code"] = response.status_code
-            result["size_bytes"] = len(response.content)
+            result["http_code"] = response.status
+            content = response.read()
+            result["size_bytes"] = len(content)
 
             # HTTP 错误
-            if response.status_code >= 400:
+            if response.status >= 400:
                 result["status"] = "http_error"
-                result["error"] = "HTTP %d" % response.status_code
+                result["error"] = "HTTP %d" % response.status
                 return result
 
             # 检测 WAF / JS 挑战页（content-type 是 text/html 而非 XML）
-            content_type = response.headers.get("content-type", "").lower()
+            content_type = response.headers.get("Content-Type", "").lower()
             if "text/html" in content_type:
                 result["status"] = "waf_blocked"
                 result["error"] = "WAF/JS challenge (content-type=text/html, not RSS)"
                 return result
 
             # 解析 XML
-            count, _ = _parse_rss_xml(response.content)
+            count, _ = _parse_rss_xml(content)
             result["entries_count"] = count
 
             if count == 0:
@@ -211,17 +206,28 @@ class SourceHealthChecker:
             else:
                 result["status"] = "healthy"
 
-        except httpx.TimeoutException:
+        except socket.timeout:
             elapsed_ms = int((time.time() - start) * 1000)
             result["response_time_ms"] = elapsed_ms
             result["status"] = "timeout"
-            result["error"] = "timeout"
+            result["error"] = "socket timeout"
 
-        except httpx.ConnectError as exc:
+        except urllib.error.HTTPError as exc:
+            elapsed_ms = int((time.time() - start) * 1000)
+            result["response_time_ms"] = elapsed_ms
+            result["http_code"] = exc.code
+            if exc.code >= 400:
+                result["status"] = "http_error"
+                result["error"] = "HTTP %d" % exc.code
+            else:
+                result["status"] = "unreachable"
+                result["error"] = str(exc)[:100]
+
+        except urllib.error.URLError as exc:
             elapsed_ms = int((time.time() - start) * 1000)
             result["response_time_ms"] = elapsed_ms
             result["status"] = "unreachable"
-            result["error"] = str(exc)[:100]
+            result["error"] = str(exc.reason)[:100]
 
         except Exception as exc:
             elapsed_ms = int((time.time() - start) * 1000)
@@ -273,8 +279,6 @@ def check_all_sources(
                     "entries_count": 0,
                 }
             results.append(result)
-
-    checker.close()
 
     # Sort to match input order
     order = {src["name"]: i for i, src in enumerate(sources)}
@@ -355,7 +359,8 @@ def main():
         print("详细结果：")
         for r in results:
             status_icon = {"healthy": "✅", "degraded": "⚠️", "http_error": "❌",
-                           "timeout": "⏱️", "unreachable": "🚫", "parse_error": "📭"}.get(r["status"], "?")
+                           "timeout": "⏱️", "unreachable": "🚫", "parse_error": "📭",
+                           "waf_blocked": "🚫"}.get(r["status"], "?")
             print(f"  {status_icon} {r['name']}: {r['status']} "
                   f"(HTTP {r['http_code']}, {r['size_bytes']}B, "
                   f"{r['response_time_ms']}ms, {r['entries_count']}条)"
