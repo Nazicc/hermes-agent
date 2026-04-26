@@ -81,6 +81,25 @@ Skills 质量评测框架：**71 tests，8 MCP tools**，升级前必须 PASS（
 - **跨会话记忆** — FTS5 会话搜索 + LLM 摘要，跨会话召回决策
 - **Topic-change guard** — `_TopicTracker` 在每次 prefetch 前做 token overlap 检测（阈值 0.6），新话题跳过 prefetch
 
+### 🦌 DeerFlow 研究 Agent 集成
+
+通过 MCP 接入 ByteDance 开源的 [DeerFlow](https://github.com/bytedance/deer-flow) 多 Agent 研究框架：
+
+| 组件 | 路径 |
+|------|------|
+| MCP 桥接层 | `~/.hermes/deerflow-mcp/deerflow_mcp.py` |
+| DeerFlow 源码 | `~/.hermes/deer-flow-repo/` |
+| 文档 | `~/.hermes/deerflow-mcp/README.md` |
+
+**5 个 MCP 工具**：`deerflow_chat`（研究任务）· `deerflow_stream`（流式思考）· `deerflow_list_models` · `deerflow_list_skills` · `deerflow_health`
+
+支持 MiniMax M2.7 thinking 推理，自动调用 web_search + web_fetch 完成深度研究任务。
+
+```bash
+hermes mcp test deerflow   # 验证连接
+hermes mcp list            # 确认 deerflow 在列
+```
+
 ---
 
 ### ⏰ Cron Job System with RSS Health Intelligence
