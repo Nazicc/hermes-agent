@@ -7,9 +7,7 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/can/.openharness-venv/bin/python3</string>
-        <string>-m</string>
-        <string>skillclaw</string>
+        <string>/Users/can/.hermes/SkillClaw/.venv/bin/skillclaw</string>
         <string>start</string>
     </array>
 
