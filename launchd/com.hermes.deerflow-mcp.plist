@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.hermes.deerflow-mcp</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/can/.hermes/deer-flow-repo/backend/.venv/bin/python</string>
+        <string>/Users/can/.hermes/hermes-agent/mcp-servers/deerflow-mcp/deerflow_mcp.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/can/.hermes/hermes-agent</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>DEERFLOW_CONFIG_PATH</key>
+        <string>/Users/can/.hermes/deer-flow-repo/config.yaml</string>
+        <key>PATH</key>
+        <string>/Users/can/.hermes/deer-flow-repo/backend/.venv/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/can/.hermes/logs/deerflow-mcp.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/can/.hermes/logs/deerflow-mcp.error.log</string>
+</dict>
+</plist>

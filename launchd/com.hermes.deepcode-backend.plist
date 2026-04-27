@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.hermes.deepcode-backend</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/can/.openharness-venv/bin/python</string>
+        <string>-m</string>
+        <string>uvicorn</string>
+        <string>new_ui.backend.main:app</string>
+        <string>--host</string>
+        <string>0.0.0.0</string>
+        <string>--port</string>
+        <string>8000</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/can/DeepCode</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>/Users/can/DeepCode:/Users/can/DeepCode/new_ui/backend</string>
+        <key>PATH</key>
+        <string>/Users/can/.openharness-venv/bin:/Users/can/.opencode/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/can/.hermes/logs/deepcode-backend.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/can/.hermes/logs/deepcode-backend.error.log</string>
+</dict>
+</plist>

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.hermes.skillclaw-proxy</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/can/.openharness-venv/bin/python3</string>
+        <string>-m</string>
+        <string>skillclaw</string>
+        <string>start</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/can</string>
+
+    <key>StandardOutPath</key>
+    <string>/Users/can/.skillclaw/logs/proxy.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/can/.skillclaw/logs/proxy.err.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>/Users/can</string>
+    </dict>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

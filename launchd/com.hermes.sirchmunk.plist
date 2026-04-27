@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.hermes.sirchmunk</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/can/.local/share/uv/tools/sirchmunk/bin/python</string>
+        <string>/Users/can/.local/bin/sirchmunk</string>
+        <string>serve</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/can/.hermes/sirchmunk-data</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>SIRCHMUNK_WORK_PATH</key>
+        <string>/Users/can/.hermes/sirchmunk-data</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/can/.hermes/sirchmunk-data/sirchmunk.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/can/.hermes/sirchmunk-data/sirchmunk.err.log</string>
+</dict>
+</plist>
