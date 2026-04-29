@@ -518,8 +518,18 @@ def normalize_usage(
     mode = (api_mode or "").strip().lower()
 
     if mode == "anthropic_messages" or provider_name == "anthropic":
-        input_tokens = _to_int(getattr(response_usage, "input_tokens", 0))
-        output_tokens = _to_int(getattr(response_usage, "output_tokens", 0))
+        # Support both Anthropic field names (input_tokens/output_tokens)
+        # and MiniMax/OpenAI field names (prompt_tokens/completion_tokens)
+        input_tokens = _to_int(
+            getattr(response_usage, "input_tokens", None)
+            or getattr(response_usage, "prompt_tokens", None)
+            or 0
+        )
+        output_tokens = _to_int(
+            getattr(response_usage, "output_tokens", None)
+            or getattr(response_usage, "completion_tokens", None)
+            or 0
+        )
         # MiniMax /v1/chat/completions (used via SkillClaw relay) does not return
         # cache_read_input_tokens in Anthropic format; cached tokens appear in
         # prompt_tokens_details.cached_tokens instead. Fall back there when needed.
@@ -527,7 +537,8 @@ def normalize_usage(
         if not cache_read_tokens:
             details = getattr(response_usage, "prompt_tokens_details", None)
             if details:
-                cache_read_tokens = _to_int(getattr(details, "cached_tokens", 0) or 0)
+                # prompt_tokens_details is a dict (MiniMax API returns JSON object)
+                cache_read_tokens = _to_int(details.get("cached_tokens", 0) if isinstance(details, dict) else getattr(details, "cached_tokens", 0) or 0)
         cache_write_tokens = _to_int(getattr(response_usage, "cache_creation_input_tokens", 0))
     elif mode == "codex_responses":
         input_total = _to_int(getattr(response_usage, "input_tokens", 0))
