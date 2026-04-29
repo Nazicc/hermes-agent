@@ -1,6 +1,11 @@
 #!/bin/bash
+# Load hermes env vars (MINIMAX_CN_API_KEY etc.)
+set -a
+source ~/.hermes/.env
+set +a
 # Keep stdin open so MCP stdio_server doesn't exit on EOF
-exec python3 -c "
+PYTHON=/Library/Frameworks/Python.framework/Versions/3.12/Resources/Python.app/Contents/MacOS/Python
+exec "$PYTHON" -c "
 import sys, os, asyncio, logging
 sys.path.insert(0, '/Users/can/.hermes/deer-flow-repo/backend/packages/harness')
 os.environ.setdefault('DEERFLOW_CONFIG_PATH', '/Users/can/.hermes/deer-flow-repo/config.yaml')
