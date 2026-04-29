@@ -10,9 +10,9 @@
 
 ---
 
-## What's Different in This Fork
+## 此分支有何不同
 
-本 fork 在 Hermes Agent（NousResearch）基础上叠加了四大核心增强，同时保持与上游完全兼容。所有改动均在本地 `~/.hermes/` 运行时目录生效，git 仓库本身不携带任何 secret。
+本 fork 在 Hermes Agent（NousResearch）基础上叠加了四大核心增强，同时保持与上游完全兼容。所有改动均在本地 `~/.hermes/` 运行时目录生效。
 
 ---
 
@@ -20,16 +20,22 @@
 
 | 机制 | 说明 |
 |------|------|
-| **pre-commit hook** | 提交前扫描 `sk-`(32+字符)、`ghp_`(36+字符) 等 secret 模式，匹配则阻断 |
+| **pre-commit hook** | 提交前扫描 `sk-(32+字符)`、`ghp_(36+字符)` 等 secret 模式，匹配则阻断 |
 | **post-commit hook** | 每次 `git commit` 自动 `make deploy` 同步 prerun scripts |
 | **Makefile** | `make setup` / `make deploy` / `make test` 一键环境恢复 |
-| **敏感信息安全** | 所有 API key/token 只在运行时通过 memory 注入，从不写入文件 |
+| **敏感信息安全** | 所有 API key 只通过环境变量引用，从不硬编码写入配置文件 |
 
-```bash
-# 新机器 clone 后一键恢复
-make setup          # 安装 hooks + 部署 prerun scripts
-make test           # 运行全部 cron 测试
-```
+---
+
+### 🤖 三套 Agent 调度体系
+
+| Agent | 能力 | 适用场景 |
+|-------|------|---------|
+| **DeerFlow** | 深度研究、Web 搜索、多步骤推理、21 内置 skills | 复杂调研任务、流式思考过程 |
+| **DeepCode** | 任务规划、论文转代码、需求分析、工作流状态管理 | 代码生成、架构设计、paper 实现 |
+| **DeepTutor** | 知识库 RAG、TutorBot 自定义教学、Co-Writer 交互学习 | 学习辅导、知识管理、问答笔记 |
+
+**调度规则**：代码/架构 → DeepCode；知识/教学 → DeepTutor；深度研究 → DeerFlow；本地文件 → SirchMunk；RAG 知识库 → OpenViking
 
 ---
 
@@ -39,17 +45,15 @@ make test           # 运行全部 cron 测试
 
 | System | Engine | Best For | Privacy |
 |--------|--------|----------|---------|
-| **SimpleMem** | LanceDB + SiliconFlow | 跨会话长期上下文召回 | `<private>` 标签自动清除 |
+| **SimpleMem** | LanceDB + embedding | 跨会话长期上下文召回 | 遗忘曲线 + 权重衰减 |
 | **Sirchmunk** | DuckDB + ripgrep | 项目历史全文检索 | 纯本地，无云端 |
-| **llm-wiki-agent** | litellm | 结构化 Wiki 知识库 | 每 Agent 独立索引 |
-
-Embeddings 通过 SiliconFlow（`BAAI/bge-large-zh-v1.5`，1024维）当 HuggingFace 不可达时绕道。
+| **OpenViking** | RAG pipeline | 结构化知识库问答 | 本地知识库，直连工具 |
 
 ---
 
 ### 📋 Manus-Style Task Planning
 
-集成 **planning-with-files**（上游 19.3k ⭐）。三份持久化 Markdown 在上下文丢失和会话重置中存活：
+集成 **planning-with-files**。三份持久化 Markdown 在上下文丢失和会话重置中存活：
 
 ```
 task_plan.md   — 阶段性路线图，带状态跟踪
@@ -57,114 +61,164 @@ findings.md    — 调研、发现、外部内容
 progress.md    — 带时间戳的会话日志
 ```
 
-五阶段工作流（需求 → 规划 → 实现 → 测试 → 交付），自动管理阶段状态。二动作规则防止多模态信息丢失。
-
----
-
-### 🏗️ RIA-TV++ Skill Framework
-
-17 个核心软件开发技能已升级至 **RIA-TV++ v2.0.0** 结构化格式：
-
-`systematic-debugging` · `test-driven-development` · `planning-and-task-breakdown` · `requesting-code-review` · `incremental-implementation` · `code-simplification` · `subagent-driven-development` · `spec-driven-development` · `source-driven-development` · `writing-plans` · `idea-refine` · `context-engineering` · `hermes-agent-architecture` · `hermes-evolver-integration` · `hermes-eval` · `simplestorage-adapter` · `dogfood`
-
-每项技能遵循 **R/I/A1/A2/E/B** 六段式结构（Trigger · Situation · Action · Verification · Edge Cases · Best Practices），含明确执行步骤、边界条件和触发场景。
-
-Skills 质量评测框架：**71 tests，8 MCP tools**，升级前必须 PASS（score ≥ 80%）。
-
 ---
 
 ### 🔄 Self-Evolution Loop
 
 - **Evolver 集成** — `skills-evolution-from-research` 技能持续评估并整合外部研究
 - **技能自动进化** — 复杂任务触发技能升级，带验证工作流
-- **Eval Harness** — 14 个评测 suite，升级前必须 PASS
 - **跨会话记忆** — FTS5 会话搜索 + LLM 摘要，跨会话召回决策
-- **Topic-change guard** — `_TopicTracker` 在每次 prefetch 前做 token overlap 检测（阈值 0.6），新话题跳过 prefetch
 
-### 🦌 DeerFlow 研究 Agent 集成
+---
 
-通过 MCP 接入 ByteDance 开源的 [DeerFlow](https://github.com/bytedance/deer-flow) 多 Agent 研究框架：
+### 🏗️ RIA-TV++ Skill Framework
 
-| 组件 | 路径 |
-|------|------|
-| MCP 桥接层 | `~/.hermes/deerflow-mcp/deerflow_mcp.py` |
-| DeerFlow 源码 | `~/.hermes/deer-flow-repo/` |
-| 文档 | `~/.hermes/deerflow-mcp/README.md` |
+**67 个技能** 覆盖软件开发、研究、MLOps、生产力等场景，核心技能：
 
-**5 个 MCP 工具**：`deerflow_chat`（研究任务）· `deerflow_stream`（流式思考）· `deerflow_list_models` · `deerflow_list_skills` · `deerflow_health`
+`systematic-debugging` · `test-driven-development` · `incremental-implementation` · `spec-driven-development` · `source-driven-development` · `requesting-code-review` · `subagent-driven-development` · `planning-with-files` · `context-engineering` · `deerflow-mcp-integration` · `native-mcp` · `hermes-agent-architecture` · `hermes-evolver-integration` · `hermes-daily-maintenance` · `deepcode-research-engine` · `github-code-review` · `pytorch-fsdp` · `peft` · `axolotl` · `unsloth` · `vllm`
 
-支持 MiniMax M2.7 thinking 推理，自动调用 web_search + web_fetch 完成深度研究任务。
+---
 
-```bash
-hermes mcp test deerflow   # 验证连接
-hermes mcp list            # 确认 deerflow 在列
+## 系统架构
+
+```
+                         用户（飞书 / CLI）
+                                   │
+                        ┌──────────▼───────────┐
+                        │   Hermes Gateway      │
+                        │   run.py              │
+                        └──────────┬───────────┘
+                                   │
+              ┌────────────────────┼────────────────────┐
+              │                    │                    │
+    ┌──────────▼──┐       ┌─────────▼──────┐    ┌───────▼──────┐
+    │ SkillClaw   │       │ MCP Client     │    │  Evolver     │
+    │ :30000      │       │ (stdio bridge) │    │  Engine      │
+    │ (relay)     │       └───────┬────────┘    └─────────────┘
+    └─────┬──────────────┬────────┼───────────────────────┘
+          │              │       │
+   ┌──────▼──────┐ ┌─────▼──────▼──────┐
+   │ deerflow-mcp │ │ deepcode-mcp       │ deeptutor-mcp
+   │ :1933        │ │ deepcode-mcp/      │ deeptutor-mcp/
+   └──────┬──────┘ └──────┬─────────────┘ └──────┬──────────┘
+          │              │                        │
+          ▼              ▼                        ▼
+   DeerFlow langgraph DeepCode backend      DeepTutor backend
+   (via SkillClaw)  :8000 (FastAPI)         :8001 (FastAPI)
+                         │                        │
+                        ▼                        ▼
+                 MiniMax M2.7              MiniMax M2.7
+             api.minimaxi.com/anthropic  api.minimaxi.com/anthropic
+
+   MCP stdio servers: sirchmunk · simplemem · simplemem_evo · skills-quality
+
+   macOS launchd services (launchd/):
+     DeerFlow MCP · DeepCode backend/frontend · DeepTutor backend/frontend
+     OpenViking :1934 · SirchMunk · SkillClaw health/proxy
 ```
 
 ---
 
-### ⏰ Cron Job System with RSS Health Intelligence
+## 核心组件路径
 
-定时任务调度系统，支持 prerun script 预检 + 多平台投递（飞书/Telegram/Email）：
-
-| 功能 | 说明 |
+| 组件 | 路径 |
 |------|------|
-| **Prerun Script** | 任务执行前运行数据收集脚本，stdout 注入 prompt |
-| **RSS Health Checker** | 并发检查 6 个 RSS 源，分类：healthy / degraded / waf_blocked / http_error / timeout / unreachable |
-| **飞书投递** | 安全资讯日报每日 08:30 自动推送到飞书 |
+| hermes-agent 源码 | `~/.hermes/hermes-agent/` |
+| Skills | `~/.hermes/skills/skills/` (67) |
+| SkillClaw | `~/.hermes/SkillClaw/` |
+| DeerFlow repo | `~/.hermes/deer-flow-repo/` |
+| DeepCode 后端 | `~/DeepCode/` |
+| DeepTutor 后端 | `~/.hermes/DeepCode/DeepTutor/` |
+| MCP servers | `~/.hermes/hermes-agent/mcp-servers/` |
+| OpenViking | `~/.hermes/openviking/` |
+| SirchMunk | `~/.hermes/sirchmunk/` |
+| cron scripts | `~/.hermes/scripts/` |
+| Evolver | `~/.hermes/hermes-agent/evolver/` |
 
-当前活跃 cron job：
-- **安全资讯日报**（`5bed6f2e3557`）— 每日 08:30，预检 RSS 源健康状态
+---
+
+## 快速开始
 
 ```bash
+# 交互式 CLI
+hermes
+
+# 诊断
+hermes doctor
+
+# MCP 管理
+hermes mcp list
+hermes mcp test deerflow
+
+# 新机器恢复
+make setup          # 安装 git hooks + 部署 prerun scripts
+make deploy         # 同步 prerun scripts
+make test           # 运行全部测试
+```
+
+### MiniMax 配置
+
+在 `~/.hermes/.env` 中配置：
+
+```bash
+MINIMAX_CN_API_KEY=***
+MINIMAX_CN_BASE_URL=https://api.minimaxi.com/anthropic/v1
+MINIMAX_CN_MODEL_NAME=MiniMax-M2.7
+```
+
+---
+
+## Cron 定时任务
+
+```bash
+# 列出所有 cron jobs
+hermes cron list
+
 # 手动运行 RSS 健康检查
 python3 ~/.hermes/scripts/rss_health_checker.py --json
 ```
 
 ---
 
-## Core Features（来自上游）
+## DeepCode / DeepTutor 使用示例
 
-| Feature | Description |
-|---------|-------------|
-| **Any model, any provider** | Nous Portal、OpenRouter（200+ 模型）、NVIDIA NIM、MiniMax、Hugging Face、OpenAI 或任何 OpenAI 兼容端点 |
-| **Multi-platform messaging** | Telegram、Discord、Slack、WhatsApp、Signal、Email，一个网关进程 |
-| **Full terminal interface** | 多行编辑、斜杠命令自动补全、对话历史、流式工具输出 |
-| **Parallel subagents** | 派生隔离子代理并发工作，零上下文开销 |
-| **Runs anywhere** | 本地、Docker、SSH、Daytona、Singularity、Modal |
+### DeepCode — 任务规划
 
----
-
-## Quick Start
-
-```bash
-# 安装
-curl -fsSL https://raw.githubusercontent.com/Nazicc/hermes-agent/main/scripts/install.sh | bash
-source ~/.bashrc    # or ~/.zshrc
-hermes              # 开始聊天
-
-# 开发 clone
-git clone https://github.com/Nazicc/hermes-agent.git
-cd hermes-agent
-./setup-hermes.sh
-
-# 新机器恢复（必须）
-make setup          # 安装 git hooks + 部署 prerun scripts
-
-# 常用命令
-hermes              # 交互式 CLI
-hermes model        # 选择 LLM 提供商和模型
-hermes gateway      # 启动消息网关
-hermes doctor       # 诊断问题
-make test           # 运行全部测试
-make deploy         # 同步 prerun scripts
+```
+→ deepcode_chat_planning(
+    requirements="用 Python 实现一个支持并发连接的记忆系统，基于 LanceDB"
+)
+→ DeepCode 自动拆解为子任务、代码结构、技术选型
 ```
 
-**MiniMax 集成** — 在 `~/.hermes/.env` 中配置：
+### DeepCode — 论文转代码
 
-```bash
-OPENAI_API_KEY=sk-cp-xxx          # Token Plan Key（sk-cp- 前缀）
-OPENAI_BASE_URL=https://api.minimaxi.com/anthropic
-LLM_MODEL=MiniMax-M2.7
+```
+→ deepcode_paper_to_code(
+    paper_url="https://arxiv.org/abs/...",
+    input_type="url"
+)
+→ DeepCode 解析论文 + 生成完整代码实现
+```
+
+### DeepTutor — 创建学习助手
+
+```
+→ deeptutor_create_tutorbot(
+    name="ML Tutor",
+    soul="你是一位 ML 教授，擅长用生活案例解释复杂概念"
+)
+→ deeptutor_tutorbot_chat(bot_id="...", message="什么是 RAG？")
+```
+
+### DeerFlow — 深度研究
+
+```
+→ deerflow_chat(
+    message="研究 2025 年 AI Agent 最新进展，给出结构化报告",
+    thinking_enabled=true
+)
+→ DeerFlow 自动调用 web_search + web_fetch，输出带 citations 的报告
 ```
 
 ---
@@ -173,42 +227,55 @@ LLM_MODEL=MiniMax-M2.7
 
 ```
 hermes-agent/
-├── Makefile                        # make setup / deploy / test
+├── Makefile                          # make setup / deploy / test
+├── mcp-servers/                      # MCP stdio server 实现
+│   ├── deerflow-mcp/                 # DeerFlow MCP 桥接
+│   ├── deepcode-mcp/                 # DeepCode MCP 桥接
+│   └── deeptutor-mcp/               # DeepTutor MCP 桥接
+├── launchd/                           # macOS launchd plist 服务定义
+│   ├── com.hermes.deerflow-mcp.plist
+│   ├── com.hermes.deepcode-*.plist
+│   ├── com.hermes.deeptutor-*.plist
+│   ├── com.hermes.openviking.plist
+│   ├── com.hermes.sirchmunk.plist
+│   └── com.hermes.skillclaw-*.plist
 ├── scripts/
 │   ├── git-hooks/
-│   │   ├── pre-commit              # 敏感信息扫描（secret scanner）
-│   │   └── post-commit             # 自动 make deploy
-│   └── deploy_prerun.sh            # prerun script 同步脚本
+│   │   ├── pre-commit                # 敏感信息扫描
+│   │   └── post-commit               # 自动 make deploy
+│   └── deploy_prerun.sh
 ├── cron/
-│   ├── rss_health_checker.py       # RSS 源健康检查（BTT/TDD，19 测试）
-│   ├── SPEC_rss_health_checker.md  # BDD feature spec
-│   ├── scheduler.py                # cron 调度器（含 prerun script 机制）
-│   ├── jobs.py                     # job CRUD（~/.hermes/cron/jobs.json）
-│   └── tests/
-│       └── test_rss_health_checker.py
-├── skills/                         # RIA-TV++ v2.0.0 技能（17 核心 + 更多）
-│   ├── software-development/
-│   └── productivity/
-│       └── planning-with-files/    # Manus 风格任务规划
-├── hermes_state.py                 # SQLite（cron 状态 + 执行历史 + agents）
-└── hermes-agent-self-evolution/   # DSPy + GEPA 自我进化引擎
+│   ├── rss_health_checker.py         # RSS 源健康检查
+│   └── scheduler.py                  # 定时任务调度器
+├── hermes_cli/                       # CLI 所有子命令
+├── agent/                            # AIAgent 核心（prompt builder、context compressor、...)
+├── tools/                             # 全部工具实现（50+）
+├── gateway/                          # 消息平台网关（飞书/Telegram/Discord/...）
+├── tui_gateway/                      # TUI JSON-RPC 后端
+├── acp_adapter/                      # VS Code / Zed / JetBrains ACP 集成
+├── skills_quality/                    # Skills 质量评分 MCP（8 tools, 71 tests）
+├── evolver/                          # Self-evolution 引擎
+└── tests/                            # pytest 测试套件（3000+ tests）
 ```
 
 ---
 
 ## Changelog
 
-<!-- 日志由每日 23:00 cron 自动生成，请勿手动修改此区块 -->
+#### 2026-04-29
+- `5414cb29` feat: add openviking plist, deerflow runner, conversation records
+- `596c5328` fix: skillclaw-proxy plist uses correct SkillClaw venv python path
+- `675cdd57` feat: add launchd plists for DeerFlow/DeepCode/DeepTutor services
+- `cd0bbf7e` feat: move all MCP server implementations into hermes-agent repo
+
+#### 2026-04-28
+- `375e66a3` docs: add DeerFlow MCP integration section to README
+- `bf47944b` fix(cron): replace httpx with stdlib urllib in rss_health_checker
+- `dda274fb` feat(memory): add ~/.hermes/agent_memory.md as third persistence anchor
 
 #### 2026-04-25
+- `e7fdd234` docs: rewrite README — fork identity, security hooks, cron health checker, RIA-TV++
 - `f2930b11` feat(security): add pre-commit secret scanner + post-commit auto-deploy hooks
-- `60441f99` feat(cron): add Makefile + deploy script for prerun sync
-- `de36e3fc` feat(cron): add RSS source health checker — BDD/TDD (19 tests passing)
-- `67195ed0` feat(skills_quality): Hermes Skills Quality Framework — 71 tests, 8 MCP tools
-- `3794adf9` feat(skills): add 8 research-driven skills (BDI, context compression/degradation/fundamentals, latent briefing, memory systems, multi-agent patterns, tool design)
-
-#### 2026-04-23
-- `6f3633a8` docs(hermes-agent): add critical operational paths and execute_code sandbox warning
 
 <!-- CHANGELOG_MARKER -->
 
