@@ -811,6 +811,14 @@ class AIAgent:
             # use a URL convention ending in /anthropic. Auto-detect these so the
             # Anthropic Messages API adapter is used instead of chat completions.
             self.api_mode = "anthropic_messages"
+        elif self.provider == "minimax-cn" and (
+            "localhost" in self._base_url_lower or "127.0.0.1" in self._base_url_lower
+        ):
+            # MiniMax via SkillClaw relay (localhost:30000/v1) — requests are forwarded
+            # in Anthropic format; responses are MiniMax native (Chat Completions).
+            # normalize_usage handles the mixed format via prompt_tokens_details
+            # fallback in the anthropic_messages branch.
+            self.api_mode = "anthropic_messages"
         elif self.provider == "bedrock" or "bedrock-runtime" in self._base_url_lower:
             # AWS Bedrock — auto-detect from provider name or base URL.
             self.api_mode = "bedrock_converse"

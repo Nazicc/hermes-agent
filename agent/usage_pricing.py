@@ -499,12 +499,15 @@ def normalize_usage(
 ) -> CanonicalUsage:
     """Normalize raw API response usage into canonical token buckets.
 
-    Handles three API shapes:
+    Handles four API shapes:
     - Anthropic: input_tokens/output_tokens/cache_read_input_tokens/cache_creation_input_tokens
     - Codex Responses: input_tokens includes cache tokens; input_tokens_details.cached_tokens separates them
     - OpenAI Chat Completions: prompt_tokens includes cache tokens; prompt_tokens_details.cached_tokens separates them
+    - MiniMax via SkillClaw relay: api_mode=anthropic_messages but response uses Chat Completions
+      format (prompt_tokens_details.cached_tokens). The anthropic_messages branch falls back to
+      prompt_tokens_details.cached_tokens when cache_read_input_tokens is absent/zero.
 
-    In both Codex and OpenAI modes, input_tokens is derived by subtracting cache
+    In Codex and OpenAI modes, input_tokens is derived by subtracting cache
     tokens from the total — the API contract is that input/prompt totals include
     cached tokens and the details object breaks them out.
     """
@@ -517,7 +520,14 @@ def normalize_usage(
     if mode == "anthropic_messages" or provider_name == "anthropic":
         input_tokens = _to_int(getattr(response_usage, "input_tokens", 0))
         output_tokens = _to_int(getattr(response_usage, "output_tokens", 0))
-        cache_read_tokens = _to_int(getattr(response_usage, "cache_read_input_tokens", 0))
+        # MiniMax /v1/chat/completions (used via SkillClaw relay) does not return
+        # cache_read_input_tokens in Anthropic format; cached tokens appear in
+        # prompt_tokens_details.cached_tokens instead. Fall back there when needed.
+        cache_read_tokens = _to_int(getattr(response_usage, "cache_read_input_tokens", None) or 0)
+        if not cache_read_tokens:
+            details = getattr(response_usage, "prompt_tokens_details", None)
+            if details:
+                cache_read_tokens = _to_int(getattr(details, "cached_tokens", 0) or 0)
         cache_write_tokens = _to_int(getattr(response_usage, "cache_creation_input_tokens", 0))
     elif mode == "codex_responses":
         input_total = _to_int(getattr(response_usage, "input_tokens", 0))
