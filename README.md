@@ -46,6 +46,7 @@
 | System | Engine | Best For | Privacy |
 |--------|--------|----------|---------|
 | **SimpleMem** | LanceDB + embedding | 跨会话长期上下文召回 | 遗忘曲线 + 权重衰减 |
+| **Hindsight** | Docker + 多策略召回 | 经验记忆、洞察反思、情景记忆 | bank 隔离，纯本地 |
 | **Sirchmunk** | DuckDB + ripgrep | 项目历史全文检索 | 纯本地，无云端 |
 | **OpenViking** | RAG pipeline | 结构化知识库问答 | 本地知识库，直连工具 |
 
