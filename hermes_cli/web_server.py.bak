@@ -1077,8 +1077,7 @@ async def pool_report(provider: str, body: _PoolReportRequest):
         raise HTTPException(status_code=404, detail=f"Key id not found in pool: {body.key_id}")
     if body.success:
         with pool._lock:
-            import dataclasses
-            updated = dataclasses.replace(entry, request_count=(entry.request_count or 0) + 1)
+            updated = entry.model_copy()
             updated.request_count = (entry.request_count or 0) + 1
             pool._replace_entry(entry, updated)
             pool._persist()
