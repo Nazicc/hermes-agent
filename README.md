@@ -262,7 +262,12 @@ hermes-agent/
 
 ## Changelog
 
+#### 2026-04-30
+- `82dd9c5c` feat(evolver): add `--api-base` option to evolve_skill.py — enables custom LLM API base URL for DSPy LM (e.g. SkillClaw relay at localhost:30000)
+
 #### 2026-04-29
+- `3905e8b1` fix: normalize_usage dict-key fallback and MiniMax field aliases
+- `3e442af6` fix: normalize_usage fallback for MiniMax/SkillClaw hybrid cache metric
 - `5414cb29` feat: add openviking plist, deerflow runner, conversation records
 - `596c5328` fix: skillclaw-proxy plist uses correct SkillClaw venv python path
 - `675cdd57` feat: add launchd plists for DeerFlow/DeepCode/DeepTutor services
