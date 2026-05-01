@@ -49,13 +49,13 @@ hermes-agent → SkillClaw (:30000) → MiniMax / OpenAI-compatible endpoints
 | **DeepCode** | 任务规划、论文转代码、需求分析、工作流状态管理 | 代码生成、架构设计、paper 实现 |
 | **DeepTutor** | 知识库 RAG、TutorBot 自定义教学、Co-Writer 交互学习 | 学习辅导、知识管理、问答笔记 |
 
-**调度规则**：代码/架构 → DeepCode；知识/教学 → DeepTutor；深度研究 → DeerFlow；本地文件 → SirchMunk；RAG 知识库 → OpenViking
+**调度规则**：代码/架构 → DeepCode；知识/教学 → DeepTutor；深度研究 → DeerFlow；本地文件 → SirchMunk；RAG 知识库 → OpenViking；个人知识图谱 → gbrain
 
 ---
 
 ### 🧠 Privacy-First Persistent Memory Stack
 
-五套互补的记忆系统，均本地运行：
+六套互补的记忆系统，均本地运行：
 
 | System | Engine | Best For | Privacy |
 |--------|--------|----------|---------|
@@ -64,6 +64,7 @@ hermes-agent → SkillClaw (:30000) → MiniMax / OpenAI-compatible endpoints
 | **Hindsight** | Docker (pgvector) + 多策略召回 | 经验记忆、洞察反思、情景记忆 | bank 隔离，纯本地 |
 | **Sirchmunk** | DuckDB + ripgrep | 项目历史全文检索 | 纯本地，无云端 |
 | **OpenViking** | Docker + RAG pipeline | 结构化知识库问答 | 本地知识库，直连工具 |
+| **gbrain** | PGLite + BAAI/bge-large-zh-v1.5（SiliconFlow） | 知识图谱、RAG 语义搜索 | 纯本地，1024-dim 向量，1241 chunks |
 
 ---
 
@@ -188,6 +189,7 @@ progress.md    — 带时间戳的会话日志
 ├── simplemem-data/           # SimpleMem LanceDB 数据
 ├── simplemem_evolution/      # Evolution/Gene/WorkingMemory
 ├── sirchmunk-data/           # Sirchmunk DuckDB 数据
+├── gbrain-data/              # gbrain PGLite 数据库（53 pages, 1241 chunks, .gitignore 排除）
 ├── openviking-data/          # OpenViking RAG 数据
 ├── deer-flow-repo/           # DeerFlow 完整仓库
 ├── sessions/                  # SQLite 会话历史
@@ -235,6 +237,10 @@ progress.md    — 带时间戳的会话日志
 ---
 
 ## Changelog
+
+#### 2026-05-02
+- `XXXXXXX` feat(brain): add gbrain as 6th memory system — PGLite + SiliconFlow BAAI/bge-large-zh-v1.5, 1241 embedded chunks
+- `XXXXXXX` feat(skills): add gbrain skill — semantic search via `gbrain query`, keyword search via `gbrain search`, page retrieval via `gbrain get`
 
 #### 2026-05-01
 - `a8a73690` chore: daily maintenance — web_server.py cleanup
