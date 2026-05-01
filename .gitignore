@@ -65,3 +65,4 @@ result
 website/static/api/skills-index.json
 evolver/
 hermes-agent-self-evolution/
+*.bak
