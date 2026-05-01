@@ -55,14 +55,15 @@ hermes-agent → SkillClaw (:30000) → MiniMax / OpenAI-compatible endpoints
 
 ### 🧠 Privacy-First Persistent Memory Stack
 
-四套互补的记忆系统，均本地运行：
+五套互补的记忆系统，均本地运行：
 
 | System | Engine | Best For | Privacy |
 |--------|--------|----------|---------|
 | **SimpleMem** | LanceDB + embedding | 跨会话长期上下文召回 | 遗忘曲线 + 权重衰减 |
-| **Hindsight** | Docker + 多策略召回 | 经验记忆、洞察反思、情景记忆 | bank 隔离，纯本地 |
+| **SimpleMem Evolution** | Gene + WorkingMemory | 触发-动作规则、自动进化 | 记忆强化 + 衰减 |
+| **Hindsight** | Docker (pgvector) + 多策略召回 | 经验记忆、洞察反思、情景记忆 | bank 隔离，纯本地 |
 | **Sirchmunk** | DuckDB + ripgrep | 项目历史全文检索 | 纯本地，无云端 |
-| **OpenViking** | RAG pipeline | 结构化知识库问答 | 本地知识库，直连工具 |
+| **OpenViking** | Docker + RAG pipeline | 结构化知识库问答 | 本地知识库，直连工具 |
 
 ---
 
@@ -89,13 +90,13 @@ progress.md    — 带时间戳的会话日志
 
 ### 🏗️ RIA-TV++ Skill Framework
 
-**85 个技能** 覆盖软件开发、研究、MLOps、生产力等场景：
+**110 个技能** 覆盖软件开发、研究、MLOps、生产力等场景：
 
 **核心开发**：`systematic-debugging` · `test-driven-development` · `incremental-implementation` · `spec-driven-development` · `source-driven-development` · `requesting-code-review` · `subagent-driven-development` · `planning-with-files` · `context-engineering`
 
 **Agent 集成**：`deerflow-mcp-integration` · `deepcode-research-engine` · `hermes-evolver-integration` · `hermes-daily-maintenance` · `hermes-mcp-tdd-workflow` · `hermes-prerun-script-deploy`
 
-**MLOps**：`pytorch-fsdp` · `peft` · `axolotl` · `unsloth` · `vllm` · `huggingface-hub` · `tensorrt-llm` · `torchtitan`
+**MLOps**：`pytorch-fsdp` · `peft` · `axolotl` · `unsloth` · `vllm` · `huggingface-hub` · `tensorrt-llm` · `torchtitan` · `accelerate`
 
 **Agent 框架**：`autonomous-ai-agents` · `claude-code` · `opencode` · `blackbox` · `godmode`
 
@@ -103,12 +104,14 @@ progress.md    — 带时间戳的会话日志
 
 **RAG/知识**：`simplemem-mcp` · `simplemem-local-embedding` · `amp-typed-memory` · `simplestorage-adapter` · `qdrant` · `pinecone` · `chroma`
 
+**安全**：`web-hacking-payloads` · `prompt-injection` · `vulnerability-intelligence` · `oss-forensics` · `git-history-security-response`
+
 ---
 
 ## 系统架构
 
 ```
-                         用户（飞书 / CLI）
+                         用户（飞书 / CLI / API）
                                    │
                         ┌──────────▼───────────┐
                         │   Hermes Gateway      │
@@ -117,28 +120,28 @@ progress.md    — 带时间戳的会话日志
                                    │
               ┌────────────────────┼────────────────────┐
               │                    │                    │
-    ┌─────────▼────────┐  ┌────────▼────────┐  ┌───────▼────────┐
-    │   AIAgent        │  │  MCP Client     │  │  Tool Registry  │
-    │   run_agent.py   │  │  (~1050 行)      │  │  50+ 工具实现   │
-    └─────────┬────────┘  └────────┬────────┘  └─────────────────┘
-              │                    │
-              │          ┌─────────┴──────────┐
-              │          │  MCP Servers (8)    │
-              │          ├────────────────────┤
-              │          │ sirchmunk           │  DuckDB 全文检索
-              │          │ simplemem          │  LanceDB + decay
-              │          │ simplemem_evolution│  Gene/working-memory
-              │          │ skills-quality     │  技能质量评分
-              │          │ deerflow           │  HKUDS 研究引擎
-              │          │ deepcode           │  任务规划 + 代码
-              │          │ deeptutor          │  教学 + RAG
-              │          │ hindsight          │  经验记忆 Docker
-              │          └────────────────────┘
+    ┌─────────▼────────┐  ┌────────▼────────┐  ┌─────────▼─────────┐
+    │   AIAgent        │  │  MCP Client     │  │  Tool Registry   │
+    │   run_agent.py   │  │  (~1050 行)      │  │  50+ 工具实现     │
+    └─────────┬────────┘  └────────┬────────┘  └──────────────────┘
+              │                   │
+              │         ┌─────────┴──────────────────┐
+              │         │  MCP Servers (8)            │
+              │         ├─────────────────────────────┤
+              │         │ sirchmunk      DuckDB 全文检索│
+              │         │ simplemem      LanceDB + decay│
+              │         │ simplemem_evo. Gene + WorkingM │
+              │         │ skills-quality  技能质量评分  │
+              │         │ deerflow       HKUDS 研究引擎│
+              │         │ deepcode       任务规划+代码 │
+              │         │ deeptutor      教学 + RAG    │
+              │         │ hindsight      经验记忆 Docker│
+              │         └─────────────────────────────┘
               │
-    ┌─────────▼──────────────┐
-    │   SkillClaw Proxy        │  ← 本地 LLM 路由层 (:30000)
-    │   MiniMax + OpenAI        │    round_robin 策略
-    └─────────┬──────────────────┘
+    ┌─────────▼──────────────────┐     ┌──────────────────────┐
+    │   SkillClaw Proxy          │ ←── │  OpenViking Docker   │
+    │   localhost:30000          │     │  port 1934           │
+    └─────────┬──────────────────┘     └──────────────────────┘
               │
     ┌─────────▼──────────────────┐
     │   MiniMax API             │
@@ -152,7 +155,7 @@ progress.md    — 带时间戳的会话日志
 
 ```
 ~/.hermes/
-├── config.yaml               # 主配置（API provider、toolsets、platforms）
+├── config.yaml               # 主配置（API provider、toolsets、platforms、8个MCP server）
 ├── .env                      # 所有敏感密钥（.gitignore 排除）
 ├── SkillClaw/                # 本地 LLM 代理层
 │   ├── skillclaw/            # 核心代理服务
@@ -172,13 +175,13 @@ progress.md    — 带时间戳的会话日志
 │   ├── skills_quality/       # Skills 质量评分 MCP
 │   ├── hermes-agent-self-evolution/  # Self-evolution 引擎
 │   └── tests/                # pytest 测试套件
-├── skills/                   # 85 个技能目录
+├── skills/                   # 110 个技能目录
 │   ├── skills/               # 核心技能（meta、architecture、...）
 │   ├── optional-skills/      # 可选技能（MLOps、Docker、...）
 │   ├── autonomous-ai-agents/ # 多 Agent 调度
 │   ├── code-generation/      # DeepCode 集成
 │   ├── mlops/                # 训练/推理工具
-│   └── ...
+│   └── security/             # 安全研究技能
 ├── memories/                 # 记忆系统数据
 │   ├── MEMORY.md             # 持久化 agent memory
 │   └── USER.md               # 持久化用户 profile
@@ -187,14 +190,25 @@ progress.md    — 带时间戳的会话日志
 ├── sirchmunk-data/           # Sirchmunk DuckDB 数据
 ├── openviking-data/          # OpenViking RAG 数据
 ├── deer-flow-repo/           # DeerFlow 完整仓库
-├── sessions/                 # SQLite 会话历史（~2512 条）
+├── sessions/                  # SQLite 会话历史
 ├── state.db                  # Hermes 主状态库
 ├── cron/
 │   ├── jobs.json             # 定时任务配置
 │   └── output/               # 任务输出
-└── scripts/
-    ├── skillclaw-health.sh   # SkillClaw 健康检查
-    └── hindsight_mcp.py      # Hindsight MCP 入口
+├── scripts/
+│   ├── skillclaw-health.sh   # SkillClaw 健康检查
+│   ├── hindsight_mcp.py      # Hindsight MCP 入口
+│   └── simplemem_mcp.py      # SimpleMem MCP 入口
+└── launchd/                   # 9 个 launchd plist 服务
+    ├── com.hermes.skillclaw-proxy.plist
+    ├── com.hermes.skillclaw-health.plist
+    ├── com.hermes.deepcode-backend.plist
+    ├── com.hermes.deepcode-frontend.plist
+    ├── com.hermes.deeptutor-backend.plist
+    ├── com.hermes.deeptutor-frontend.plist
+    ├── com.hermes.deerflow-mcp.plist
+    ├── com.hermes.sirchmunk.plist
+    └── com.hermes.openviking.plist
 ```
 
 ---
@@ -221,6 +235,10 @@ progress.md    — 带时间戳的会话日志
 ---
 
 ## Changelog
+
+#### 2026-05-01
+- `a8a73690` chore: daily maintenance — web_server.py cleanup
+- `8760f0d9` feat(skills): add security skills — web-hacking-payloads, prompt-injection, vulnerability-intelligence
 
 #### 2026-04-30
 - `222684aa` docs: add Hindsight to memory stack table
