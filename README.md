@@ -6,7 +6,7 @@
   <a href="https://discord.gg/NousResearch"><img src="https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
 </p>
 
-**[English](#whats-different-in-this-fork) · [中文](#此分支有何不同)**
+**English · 中文**
 
 ---
 
@@ -20,7 +20,7 @@
 
 | 机制 | 说明 |
 |------|------|
-| **pre-commit hook** | 提交前扫描 `sk-(32+字符)`、`ghp_(36+字符)` 等 secret 模式，匹配则阻断 |
+| **pre-commit hook** | 提交前扫描常见 secret 模式，匹配则阻断 |
 | **post-commit hook** | 每次 `git commit` 自动 `make deploy` 同步 prerun scripts |
 | **敏感信息安全** | 所有 API key 只通过环境变量引用，从不硬编码写入配置文件 |
 
@@ -30,13 +30,13 @@
 
 **SkillClaw** 是本地 LLM 流量代理层，运行于 `localhost:30000`，负责：
 
-- **多租户路由**：MiniMax Token Plan Key + round_robin 负载策略
+- **多租户路由**：Token Plan Key + round_robin 负载策略
 - **协议兼容**：OpenAI-compatible API，零成本切换模型
-- **健康守护**：`skillclaw-health` launchd 持续监控，`ai.hermes.skillclaw-evolve` 处理自动进化
+- **健康守护**：`skillclaw-health` launchd 持续监控，自动故障转移
 - **配置隔离**：`.env` 中存储所有 key，SkillClaw 只读环境变量
 
 ```
-hermes-agent → SkillClaw (:30000) → MiniMax / OpenAI-compatible endpoints
+hermes-agent → SkillClaw (:30000) → LLM API endpoints
 ```
 
 ---
@@ -64,7 +64,7 @@ hermes-agent → SkillClaw (:30000) → MiniMax / OpenAI-compatible endpoints
 | **Hindsight** | Docker (pgvector) + 多策略召回 | 经验记忆、洞察反思、情景记忆 | bank 隔离，纯本地 |
 | **Sirchmunk** | DuckDB + ripgrep | 项目历史全文检索 | 纯本地，无云端 |
 | **OpenViking** | Docker + RAG pipeline | 结构化知识库问答 | 本地知识库，直连工具 |
-| **gbrain** | PGLite + BAAI/bge-large-zh-v1.5（SiliconFlow） | 知识图谱、RAG 语义搜索 | 纯本地，1024-dim 向量，1241 chunks |
+| **gbrain** | PGLite + BAAI/bge-large-zh-v1.5（SiliconFlow） | 知识图谱、RAG 语义搜索 | 纯本地，向量检索 |
 
 ---
 
@@ -89,9 +89,24 @@ progress.md    — 带时间戳的会话日志
 
 ---
 
+### 🎯 CTF 综合能力
+
+融合四大 CTF 知识库，构建互补的技能体系：
+
+| 来源 | 内容 |
+|------|------|
+| **ctf-wiki** | 14 个方向完整理论知识（PWN/密码学/Web/逆向/杂项/区块链等） |
+| **google-ctf** | 2017-2025 真实 CTF challenge（Docker/K8s 部署） |
+| **awesome-ctf** | 工具链清单、平台索引、写作者社区 |
+| **ctf-skills** | 实测可运行脚本模板（RSACTFTool/Pwntools/angr 等） |
+
+**核心 CTF Skills**：`ctf-master`（综合入口）· `ctf-pwn`（PWN 深度）· `ctf-crypto-comprehensive`（密码学融合）· `ctf-skills-toolkit`（工具包）
+
+---
+
 ### 🏗️ RIA-TV++ Skill Framework
 
-**110 个技能** 覆盖软件开发、研究、MLOps、生产力等场景：
+**110+ 个技能** 覆盖软件开发、研究、MLOps、生产力等场景：
 
 **核心开发**：`systematic-debugging` · `test-driven-development` · `incremental-implementation` · `spec-driven-development` · `source-driven-development` · `requesting-code-review` · `subagent-driven-development` · `planning-with-files` · `context-engineering`
 
@@ -105,7 +120,7 @@ progress.md    — 带时间戳的会话日志
 
 **RAG/知识**：`simplemem-mcp` · `simplemem-local-embedding` · `amp-typed-memory` · `simplestorage-adapter` · `qdrant` · `pinecone` · `chroma`
 
-**安全**：`web-hacking-payloads` · `prompt-injection` · `vulnerability-intelligence` · `oss-forensics` · `git-history-security-response`
+**安全/CTF**：`oss-forensics` · `git-history-security-response` · `ctf-master` · `ctf-pwn` · `ctf-crypto-comprehensive` · `ctf-skills-toolkit`
 
 ---
 
@@ -145,8 +160,7 @@ progress.md    — 带时间戳的会话日志
     └─────────┬──────────────────┘     └──────────────────────┘
               │
     ┌─────────▼──────────────────┐
-    │   MiniMax API             │
-    │   Token Plan (sk-cp-...)  │  ← key 仅存于 ~/.hermes/.env
+    │   LLM API                  │  ← key 仅存于 ~/.hermes/.env
     └───────────────────────────┘
 ```
 
@@ -161,7 +175,7 @@ progress.md    — 带时间戳的会话日志
 ├── SkillClaw/                # 本地 LLM 代理层
 │   ├── skillclaw/            # 核心代理服务
 │   ├── evolve_server/        # 自动进化服务
-│   └── scripts/              # health-check 等运维脚本
+│   └── scripts/             # health-check 等运维脚本
 ├── hermes-agent/             # 主代码仓库（git 管理）
 │   ├── run_agent.py          # AIAgent 核心
 │   ├── model_tools.py        # 工具编排
@@ -169,39 +183,40 @@ progress.md    — 带时间戳的会话日志
 │   ├── agent/                # prompt builder、context compressor、...
 │   ├── tools/                # 50+ 工具实现
 │   ├── gateway/              # 消息平台网关
-│   ├── mcp-servers/          # 自定义 MCP 实现
+│   ├── mcp-servers/           # 自定义 MCP 实现
 │   │   ├── deerflow-mcp/
 │   │   ├── deepcode-mcp/
-│   │   └── deeptutor-mcp/
-│   ├── skills_quality/       # Skills 质量评分 MCP
+│   │   ├── deeptutor-mcp/
+│   │   └── browser-harness-mcp/
+│   ├── skills_quality/        # Skills 质量评分 MCP
 │   ├── hermes-agent-self-evolution/  # Self-evolution 引擎
 │   └── tests/                # pytest 测试套件
-├── skills/                   # 110 个技能目录
+├── skills/                   # 110+ 个技能目录
 │   ├── skills/               # 核心技能（meta、architecture、...）
-│   ├── optional-skills/      # 可选技能（MLOps、Docker、...）
+│   ├── optional-skills/       # 可选技能（MLOps、Docker、...）
 │   ├── autonomous-ai-agents/ # 多 Agent 调度
-│   ├── code-generation/      # DeepCode 集成
+│   ├── code-generation/       # DeepCode 集成
 │   ├── mlops/                # 训练/推理工具
-│   └── security/             # 安全研究技能
-├── memories/                 # 记忆系统数据
-│   ├── MEMORY.md             # 持久化 agent memory
-│   └── USER.md               # 持久化用户 profile
+│   └── ctf/                  # CTF 综合技能（ctf-master/pwn/crypto-comprehensive/skills-toolkit）
+├── memories/                  # 记忆系统数据
+│   ├── MEMORY.md            # 持久化 agent memory
+│   └── USER.md              # 持久化用户 profile
 ├── simplemem-data/           # SimpleMem LanceDB 数据
 ├── simplemem_evolution/      # Evolution/Gene/WorkingMemory
 ├── sirchmunk-data/           # Sirchmunk DuckDB 数据
-├── gbrain-data/              # gbrain PGLite 数据库（53 pages, 1241 chunks, .gitignore 排除）
+├── gbrain-data/              # gbrain PGLite 数据库（.gitignore 排除）
 ├── openviking-data/          # OpenViking RAG 数据
 ├── deer-flow-repo/           # DeerFlow 完整仓库
-├── sessions/                  # SQLite 会话历史
+├── sessions/                 # SQLite 会话历史
 ├── state.db                  # Hermes 主状态库
 ├── cron/
-│   ├── jobs.json             # 定时任务配置
-│   └── output/               # 任务输出
+│   ├── jobs.json            # 定时任务配置
+│   └── output/              # 任务输出
 ├── scripts/
 │   ├── skillclaw-health.sh   # SkillClaw 健康检查
 │   ├── hindsight_mcp.py      # Hindsight MCP 入口
 │   └── simplemem_mcp.py      # SimpleMem MCP 入口
-└── launchd/                   # 9 个 launchd plist 服务
+└── launchd/                  # launchd plist 服务
     ├── com.hermes.skillclaw-proxy.plist
     ├── com.hermes.skillclaw-health.plist
     ├── com.hermes.deepcode-backend.plist
@@ -219,9 +234,9 @@ progress.md    — 带时间戳的会话日志
 
 | 平台 | 状态 | 说明 |
 |------|------|------|
-| **飞书** | ✅ 已接入 | Home channel: `oc_cb1804a2524577adba20634a65394b81` |
+| **飞书** | ✅ 已接入 | 配置于 `config.yaml` |
 | **CLI** | ✅ | `hermes` 命令行入口 |
-| **API Server** | ✅ | `127.0.0.1:8642`（key 认证） |
+| **API Server** | ✅ | 本地 API server（key 认证） |
 | **Telegram/Slack/Discord** | 配置 | `config.yaml` 中配置即可启用 |
 
 ---
@@ -238,33 +253,30 @@ progress.md    — 带时间戳的会话日志
 
 ## Changelog
 
+#### 2026-05-04
+- `d792c4a6` feat(ctf): add fused CTF skills — ctf-master/pwn/crypto-comprehensive/skills-toolkit
+- `b48359d6` chore: update CTF memory — 4-source fusion committed
+
 #### 2026-05-02
-- `XXXXXXX` feat(brain): add gbrain as 6th memory system — PGLite + SiliconFlow BAAI/bge-large-zh-v1.5, 1241 embedded chunks
-- `XXXXXXX` feat(skills): add gbrain skill — semantic search via `gbrain query`, keyword search via `gbrain search`, page retrieval via `gbrain get`
+- `49c704fd` feat(brain): add gbrain as 6th memory system — PGLite + SiliconFlow BAAI/bge-large-zh-v1.5
 
 #### 2026-05-01
-- `a8a73690` chore: daily maintenance — web_server.py cleanup
+- `a847070c` chore: daily maintenance 2026-05-01
 - `8760f0d9` feat(skills): add security skills — web-hacking-payloads, prompt-injection, vulnerability-intelligence
 
 #### 2026-04-30
 - `222684aa` docs: add Hindsight to memory stack table
 - `82dd9c5c` feat(evolver): add `--api-base` option — supports custom LLM API base URL for DSPy LM
-- `c868383a` docs: update changelog
 
 #### 2026-04-29
 - `3905e8b1` fix: normalize_usage dict-key fallback and MiniMax field aliases
-- `3e442af6` fix: normalize_usage fallback for MiniMax/SkillClaw hybrid cache metric
-- `3e7055e7` chore: daily cleanup — memory refresh, session hygiene, openclaw artifacts cleared
 - `549ea0c9` docs: update README — reflect current architecture (67 skills, 9 launchd services, mcp-servers/)
 
 #### 2026-04-28
 - `375e66a3` docs: add DeerFlow MCP integration section to README
-- `bf47944b` fix(cron): replace httpx with stdlib urllib in rss_health_checker
-- `dda274fb` feat(memory): add ~/.hermes/agent_memory.md as third persistence anchor
 
 #### 2026-04-25
 - `e7fdd234` docs: rewrite README — fork identity, security hooks, cron health checker, RIA-TV++
-- `f2930b11` feat(security): add pre-commit secret scanner + post-commit auto-deploy hooks
 
 <!-- CHANGELOG_MARKER -->
 
