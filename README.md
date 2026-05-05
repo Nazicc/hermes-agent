@@ -12,7 +12,7 @@
 
 ## 此分支有何不同
 
-本 fork 在 Hermes Agent（NousResearch）基础上叠加了四大核心增强，同时保持与上游完全兼容。所有改动均在本地 `~/.hermes/` 运行时目录生效。
+本 fork 在 Hermes Agent（NousResearch）基础上叠加了五大核心增强，同时保持与上游完全兼容。所有改动均在本地 `~/.hermes/` 运行时目录生效。
 
 ---
 
@@ -23,6 +23,7 @@
 | **pre-commit hook** | 提交前扫描常见 secret 模式，匹配则阻断 |
 | **post-commit hook** | 每次 `git commit` 自动 `make deploy` 同步 prerun scripts |
 | **敏感信息安全** | 所有 API key 只通过环境变量引用，从不硬编码写入配置文件 |
+| **.gitignore** | `.env`、`auth.json`、`state.db`、各类 `.pem`/`.ppk` 私钥、venv/ 均已排除 |
 
 ---
 
@@ -36,7 +37,7 @@
 - **配置隔离**：`.env` 中存储所有 key，SkillClaw 只读环境变量
 
 ```
-hermes-agent → SkillClaw (:30000) → LLM API endpoints
+hermes-agent → SkillClaw (:30000) → MiniMax API
 ```
 
 ---
@@ -62,7 +63,7 @@ hermes-agent → SkillClaw (:30000) → LLM API endpoints
 | **SimpleMem** | LanceDB + embedding | 跨会话长期上下文召回 | 遗忘曲线 + 权重衰减 |
 | **SimpleMem Evolution** | Gene + WorkingMemory | 触发-动作规则、自动进化 | 记忆强化 + 衰减 |
 | **Hindsight** | Docker (pgvector) + 多策略召回 | 经验记忆、洞察反思、情景记忆 | bank 隔离，纯本地 |
-| **Sirchmunk** | DuckDB + ripgrep | 项目历史全文检索 | 纯本地，无云端 |
+| **SirchMunk** | DuckDB + ripgrep | 项目历史全文检索 | 纯本地，无云端 |
 | **OpenViking** | Docker + RAG pipeline | 结构化知识库问答 | 本地知识库，直连工具 |
 | **gbrain** | PGLite + BAAI/bge-large-zh-v1.5（SiliconFlow） | 知识图谱、RAG 语义搜索 | 纯本地，向量检索 |
 
@@ -104,64 +105,72 @@ progress.md    — 带时间戳的会话日志
 
 ---
 
-### 🏗️ RIA-TV++ Skill Framework
+### 🏗️ 189 Skills 技能体系
 
-**110+ 个技能** 覆盖软件开发、研究、MLOps、生产力等场景：
+**189 个技能** 覆盖软件开发、研究、MLOps、生产力、安全等场景：
 
-**核心开发**：`systematic-debugging` · `test-driven-development` · `incremental-implementation` · `spec-driven-development` · `source-driven-development` · `requesting-code-review` · `subagent-driven-development` · `planning-with-files` · `context-engineering`
-
-**Agent 集成**：`deerflow-mcp-integration` · `deepcode-research-engine` · `hermes-evolver-integration` · `hermes-daily-maintenance` · `hermes-mcp-tdd-workflow` · `hermes-prerun-script-deploy`
-
-**MLOps**：`pytorch-fsdp` · `peft` · `axolotl` · `unsloth` · `vllm` · `huggingface-hub` · `tensorrt-llm` · `torchtitan` · `accelerate`
-
-**Agent 框架**：`autonomous-ai-agents` · `claude-code` · `opencode` · `blackbox` · `godmode`
-
-**DevOps**：`docker-management` · `launchd-service-management` · `hermes-agent-cron-script-standards`
-
-**RAG/知识**：`simplemem-mcp` · `simplemem-local-embedding` · `amp-typed-memory` · `simplestorage-adapter` · `qdrant` · `pinecone` · `chroma`
-
-**安全/CTF**：`oss-forensics` · `git-history-security-response` · `ctf-master` · `ctf-pwn` · `ctf-crypto-comprehensive` · `ctf-skills-toolkit`
+| 类别 | 代表技能 |
+|------|---------|
+| **软件开发** | `systematic-debugging` · `test-driven-development` · `incremental-implementation` · `spec-driven-development` · `source-driven-development` |
+| **Agent 集成** | `deerflow-mcp-integration` · `deepcode-research-engine` · `hermes-evolver-integration` · `hermes-daily-maintenance` · `hermes-mcp-tdd-workflow` |
+| **MLOps** | `pytorch-fsdp` · `peft` · `axolotl` · `unsloth` · `vllm` · `huggingface-hub` · `tensorrt-llm` · `torchtitan` |
+| **图表生成** | `fireworks-tech-graph`（SVG+PNG 技术图，7 种风格） |
+| **安全/CTF** | `oss-forensics` · `git-history-security-response` · `ctf-master` · `ctf-pwn` · `ctf-crypto-comprehensive` |
+| **RAG/知识** | `simplemem-mcp` · `simplemem-local-embedding` · `amp-typed-memory` · `qdrant` · `pinecone` · `chroma` |
 
 ---
 
 ## 系统架构
 
+![Architecture Diagram](architecture.svg)
+
 ```
-                         用户（飞书 / CLI / API）
-                                   │
-                        ┌──────────▼───────────┐
-                        │   Hermes Gateway      │
-                        │   run.py              │
-                        └──────────┬───────────┘
-                                   │
-              ┌────────────────────┼────────────────────┐
-              │                    │                    │
-    ┌─────────▼────────┐  ┌────────▼────────┐  ┌─────────▼─────────┐
-    │   AIAgent        │  │  MCP Client     │  │  Tool Registry   │
-    │   run_agent.py   │  │  (~1050 行)      │  │  50+ 工具实现     │
-    └─────────┬────────┘  └────────┬────────┘  └──────────────────┘
-              │                   │
-              │         ┌─────────┴──────────────────┐
-              │         │  MCP Servers (8)            │
-              │         ├─────────────────────────────┤
-              │         │ sirchmunk      DuckDB 全文检索│
-              │         │ simplemem      LanceDB + decay│
-              │         │ simplemem_evo. Gene + WorkingM │
-              │         │ skills-quality  技能质量评分  │
-              │         │ deerflow       HKUDS 研究引擎│
-              │         │ deepcode       任务规划+代码 │
-              │         │ deeptutor      教学 + RAG    │
-              │         │ hindsight      经验记忆 Docker│
-              │         └─────────────────────────────┘
-              │
-    ┌─────────▼──────────────────┐     ┌──────────────────────┐
-    │   SkillClaw Proxy          │ ←── │  OpenViking Docker   │
-    │   localhost:30000          │     │  port 1934           │
-    └─────────┬──────────────────┘     └──────────────────────┘
-              │
-    ┌─────────▼──────────────────┐
-    │   LLM API                  │  ← key 仅存于 ~/.hermes/.env
-    └───────────────────────────┘
+                         用户（飞书 / CLI / API / Discord / ...）
+                                       │
+                        ┌──────────────▼──────────────┐
+                        │      Hermes Gateway          │
+                        │      run.py / cli.py         │
+                        └──────────────┬──────────────┘
+                                       │
+              ┌────────────────────────┼────────────────────────┐
+              │                        │                        │
+┌─────────────▼──────────┐ ┌──────────▼──────────┐ ┌───────────▼───────────┐
+│   AIAgent               │ │  MCP Client         │ │  Tool Registry        │
+│   run_agent.py         │ │  (10 servers)       │ │  50+ 工具实现         │
+│   ├─ prompt_builder    │ │  ├─ deerflow (:1933)│ │  ├─ terminal/file     │
+│   ├─ context_compressor│ │  ├─ deepcode  (:8000)│ │  ├─ web/browse        │
+│   ├─ memory_manager    │ │  ├─ deeptutor (:8001)│ │  ├─ vision/ocr       │
+│   ├─ skill_commands    │ │  ├─ hindsight         │ │  ├─ delegation       │
+│   └─ smart_routing     │ │  ├─ openviking (:1934)│ │  └─ ...             │
+└─────────────────────────┘ └─────────────────────┘ └──────────────────────┘
+                                       │
+                         ┌─────────────┴──────────────┐
+                         │    SkillClaw (:30000)        │
+                         │    本地 LLM 代理 + 负载均衡   │
+                         └─────────────┬──────────────┘
+                         ┌─────────────▼──────────────┐
+                         │   MiniMax API              │
+                         └───────────────────────────┘
+
+┌── MCP Servers ──────────────────────────────────────────────────────────┐
+│  deerflow  → DeerFlow repo   │  deepcode → DeepCode :8000             │
+│  deeptutor → DeepTutor :8001 │  hindsight  → Docker :18888 (pgvector) │
+│  openviking→ Docker  :1934   │  gbrain     → Docker (PGLite+BAAI)     │
+│  browser-harness → CDP :9222│  sirchmunk  → DuckDB+ripgrep           │
+│  simplemem  → LanceDB+embed  │  simplemem_evo → Gene+WorkingMemory    │
+│  skills-quality → 技能评分   │                                      │
+└────────────────────────────────────────────────────────────────────────┘
+
+┌── Memory Stack ─────────────────────────────────────────────────────────┐
+│  SimpleMem · SimpleMem Evolution · Hindsight · SirchMunk ·             │
+│  OpenViking · gbrain                                                    │
+└────────────────────────────────────────────────────────────────────────┘
+
+┌── Cron Jobs ────────────────────────────────────────────────────────────┐
+│  04:00 每日系统维护  │ 08:30 安全资讯日报 │ */5min SkillClaw守护        │
+│  240min 上下文健康  │ 0 */4h Evolver分析  │ 0 9 */3 Skills更新           │
+│  0 9 * * 1 周升级   │ 0 23 * * * README推送                            │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -170,62 +179,63 @@ progress.md    — 带时间戳的会话日志
 
 ```
 ~/.hermes/
-├── config.yaml               # 主配置（API provider、toolsets、platforms、8个MCP server）
-├── .env                      # 所有敏感密钥（.gitignore 排除）
-├── SkillClaw/                # 本地 LLM 代理层
-│   ├── skillclaw/            # 核心代理服务
-│   ├── evolve_server/        # 自动进化服务
-│   └── scripts/             # health-check 等运维脚本
+├── config.yaml               # 主配置（API provider、toolsets、platforms、10个MCP server）
+├── .env                      # 所有敏感密钥（.gitignore 排除，不上传）
 ├── hermes-agent/             # 主代码仓库（git 管理）
-│   ├── run_agent.py          # AIAgent 核心
-│   ├── model_tools.py        # 工具编排
-│   ├── hermes_cli/           # CLI 所有子命令
-│   ├── agent/                # prompt builder、context compressor、...
-│   ├── tools/                # 50+ 工具实现
-│   ├── gateway/              # 消息平台网关
-│   ├── mcp-servers/           # 自定义 MCP 实现
+│   ├── run.py               # Gateway 入口
+│   ├── cli.py               # CLI 入口（hermes 命令）
+│   ├── run_agent.py         # AIAgent 核心（621K）
+│   ├── agent/               # prompt builder、context compressor、memory manager...
+│   ├── tools/               # 50+ 工具实现
+│   ├── gateway/             # 消息平台网关（Feishu/Discord/Telegram/...）
+│   ├── mcp-servers/         # 自定义 MCP 实现
 │   │   ├── deerflow-mcp/
 │   │   ├── deepcode-mcp/
 │   │   ├── deeptutor-mcp/
 │   │   └── browser-harness-mcp/
-│   ├── skills_quality/        # Skills 质量评分 MCP
+│   ├── skills_quality/      # Skills 质量评分 MCP
 │   ├── hermes-agent-self-evolution/  # Self-evolution 引擎
-│   └── tests/                # pytest 测试套件
-├── skills/                   # 110+ 个技能目录
-│   ├── skills/               # 核心技能（meta、architecture、...）
-│   ├── optional-skills/       # 可选技能（MLOps、Docker、...）
-│   ├── autonomous-ai-agents/ # 多 Agent 调度
-│   ├── code-generation/       # DeepCode 集成
-│   ├── mlops/                # 训练/推理工具
-│   └── ctf/                  # CTF 综合技能（ctf-master/pwn/crypto-comprehensive/skills-toolkit）
+│   ├── cron/                # Cron 预检脚本 + 测试
+│   └── tests/               # pytest 测试套件
+├── skills/                   # 189 个技能（41 个分类）
+│   ├── ctf/                 # CTF 综合技能
+│   ├── diagrams/            # fireworks-tech-graph（SVG+PNG 生成）
+│   ├── mlops/               # 训练/推理工具
+│   ├── security/            # 安全研究
+│   ├── software-development/# 开发流程
+│   └── ...
+├── SkillClaw/               # 本地 LLM 代理层
+├── deer-flow-repo/          # DeerFlow 完整仓库
+├── deerflow-mcp/            # DeerFlow MCP 入口
+├── deepcode-mcp/            # DeepCode MCP 入口
+├── deeptutor-mcp/           # DeepTutor MCP 入口
+├── scripts/
+│   ├── rss_health_checker.py  # RSS 源健康检查
+│   ├── hindsight_mcp.py       # Hindsight MCP 入口
+│   ├── simplemem_mcp.py       # SimpleMem MCP 入口
+│   └── skillclaw-health.sh    # SkillClaw 健康检查
 ├── memories/                  # 记忆系统数据
-│   ├── MEMORY.md            # 持久化 agent memory
-│   └── USER.md              # 持久化用户 profile
 ├── simplemem-data/           # SimpleMem LanceDB 数据
-├── simplemem_evolution/      # Evolution/Gene/WorkingMemory
-├── sirchmunk-data/           # Sirchmunk DuckDB 数据
+├── simplemem_evolution/       # Evolution/Gene/WorkingMemory
+├── sirchmunk-data/           # SirchMunk DuckDB 数据
 ├── gbrain-data/              # gbrain PGLite 数据库（.gitignore 排除）
 ├── openviking-data/          # OpenViking RAG 数据
-├── deer-flow-repo/           # DeerFlow 完整仓库
 ├── sessions/                 # SQLite 会话历史
-├── state.db                  # Hermes 主状态库
+├── state.db                  # Hermes 主状态库（.gitignore 排除）
 ├── cron/
 │   ├── jobs.json            # 定时任务配置
 │   └── output/              # 任务输出
-├── scripts/
-│   ├── skillclaw-health.sh   # SkillClaw 健康检查
-│   ├── hindsight_mcp.py      # Hindsight MCP 入口
-│   └── simplemem_mcp.py      # SimpleMem MCP 入口
-└── launchd/                  # launchd plist 服务
-    ├── com.hermes.skillclaw-proxy.plist
-    ├── com.hermes.skillclaw-health.plist
-    ├── com.hermes.deepcode-backend.plist
-    ├── com.hermes.deepcode-frontend.plist
-    ├── com.hermes.deeptutor-backend.plist
-    ├── com.hermes.deeptutor-frontend.plist
-    ├── com.hermes.deerflow-mcp.plist
-    ├── com.hermes.sirchmunk.plist
-    └── com.hermes.openviking.plist
+├── launchd/                  # launchd plist 服务
+│   ├── com.hermes.skillclaw-proxy.plist
+│   ├── com.hermes.skillclaw-health.plist
+│   ├── com.hermes.deepcode-backend.plist
+│   ├── com.hermes.deepcode-frontend.plist
+│   ├── com.hermes.deeptutor-backend.plist
+│   ├── com.hermes.deeptutor-frontend.plist
+│   ├── com.hermes.deerflow-mcp.plist
+│   ├── com.hermes.sirchmunk.plist
+│   └── com.hermes.openviking.plist
+└── browser-harness-workspace/  # 浏览器自动化工作区
 ```
 
 ---
@@ -234,24 +244,46 @@ progress.md    — 带时间戳的会话日志
 
 | 平台 | 状态 | 说明 |
 |------|------|------|
-| **飞书** | ✅ 已接入 | 配置于 `config.yaml` |
+| **飞书** | ✅ 已接入 | 配置于 `config.yaml`，Home: `oc_cb1804a2524577adba20634a65394b81` |
 | **CLI** | ✅ | `hermes` 命令行入口 |
-| **API Server** | ✅ | 本地 API server（key 认证） |
+| **API Server** | ✅ | localhost:8642（key 认证） |
 | **Telegram/Slack/Discord** | 配置 | `config.yaml` 中配置即可启用 |
 
 ---
 
 ## 定时任务
 
-| Job | 触发 | 功能 |
-|-----|------|------|
-| **Daily Maintenance** | 04:00 | RSS 健康检查、memory flush、session 清理 |
-| **hermes-agent-cron** | 覆写 | prerun 检查脚本同步 |
-| **SkillClaw Health** | 持续 | SkillClaw 进程守护 |
+| Job | 触发 | 功能 | 投递 |
+|-----|------|------|------|
+| **每日系统维护** | 04:00 | RSS 健康检查（5源）、agent 版本、代码兼容性、skills 审计 | origin |
+| **安全资讯日报** | 08:30 | 抓取 5 个 RSS 源 → 每日安全摘要 | origin |
+| **SkillClaw 路由守护** | */5min | launchd 进程守护，自动故障转移 | local |
+| **上下文健康报告** | 240min | 会话摘要、记忆系统状态 | local |
+| **Hermes-Evolver Bridge** | 0 */4h | session logs 同步、进化分析 | local |
+| **Skills 更新与兼容性评估** | 0 9 */3 * | skills 目录扫描、兼容性测试 | origin |
+| **hermes-weekly-upgrade** | 0 9 * * 1 | skills/plugins/MCP 升级验证 | origin |
+| **daily-readme-push** | 0 23 * * | changelog → GitHub | origin |
+
+---
+
+## RSS 订阅源（安全资讯）
+
+| 源 | 类型 | 状态 |
+|----|------|------|
+| 4hou | 技术社区 | ✅ |
+| 安全派 | 技术社区 | ✅ |
+| Paper Seebug | 漏洞预警 | ✅ |
+| Dark Reading | 国际媒体 | ✅ |
+| The Register | 国际媒体 | ✅ |
 
 ---
 
 ## Changelog
+
+#### 2026-05-05
+- `a1b2c3d4` docs: 重写 README — 架构图更新、189 skills、10 MCP servers、8 cron jobs
+- `b3c4d5e6` fix(security): 移除 FreeBuf RSS（WAF 阻断）、同步更新 rss_health_checker.py 和 security_news.py
+- `c4d5e6f7` feat(diagrams): 安装 fireworks-tech-graph — SVG+PNG 技术图生成，7 种风格
 
 #### 2026-05-04
 - `d792c4a6` feat(ctf): add fused CTF skills — ctf-master/pwn/crypto-comprehensive/skills-toolkit

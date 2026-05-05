@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a1628"/>
+      <stop offset="100%" style="stop-color:#0d1f3c"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="800" height="600" fill="url(#bgGrad)"/>
+  <rect x="0" y="0" width="800" height="600" fill="none" stroke="#1a3a5c" stroke-width="1"/>
+  <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#152238" stroke-width="0.5"/>
+  </pattern>
+  <rect width="800" height="600" fill="url(#grid)"/>
+  <text x="400" y="40" font-family="monospace" font-size="20" fill="#4a9eff" text-anchor="middle" filter="url(#glow)">Hermes Agent Architecture</text>
+  <g id="user-layer">
+    <rect x="300" y="80" width="200" height="50" rx="8" fill="#1e3a5f" stroke="#4a9eff" stroke-width="2"/>
+    <text x="400" y="112" font-family="monospace" font-size="14" fill="#4a9eff" text-anchor="middle">User / CLI / Gateway</text>
+  </g>
+  <g id="agent-core">
+    <rect x="250" y="180" width="300" height="120" rx="8" fill="#1a2f4a" stroke="#00d4aa" stroke-width="2"/>
+    <text x="400" y="210" font-family="monospace" font-size="14" fill="#00d4aa" text-anchor="middle">AIAgent Core</text>
+    <text x="400" y="235" font-family="monospace" font-size="11" fill="#7fdbca" text-anchor="middle">• run_agent.py</text>
+    <text x="400" y="255" font-family="monospace" font-size="11" fill="#7fdbca" text-anchor="middle">• model_tools.py</text>
+    <text x="400" y="275" font-family="monospace" font-size="11" fill="#7fdbca" text-anchor="middle">• toolsets.py</text>
+  </g>
+  <g id="tools-layer">
+    <rect x="50" y="350" width="150" height="80" rx="8" fill="#1a2f4a" stroke="#ff6b9d" stroke-width="2"/>
+    <text x="125" y="380" font-family="monospace" font-size="12" fill="#ff6b9d" text-anchor="middle">File Tools</text>
+    <text x="125" y="400" font-family="monospace" font-size="10" fill="#ffb3c7" text-anchor="middle">registry.py</text>
+    <rect x="225" y="350" width="150" height="80" rx="8" fill="#1a2f4a" stroke="#ff6b9d" stroke-width="2"/>
+    <text x="300" y="380" font-family="monospace" font-size="12" fill="#ff6b9d" text-anchor="middle">Terminal Tool</text>
+    <text x="300" y="400" font-family="monospace" font-size="10" fill="#ffb3c7" text-anchor="middle">terminal_tool.py</text>
+    <rect x="425" y="350" width="150" height="80" rx="8" fill="#1a2f4a" stroke="#ff6b9d" stroke-width="2"/>
+    <text x="500" y="380" font-family="monospace" font-size="12" fill="#ff6b9d" text-anchor="middle">MCP Tool</text>
+    <text x="500" y="400" font-family="monospace" font-size="10" fill="#ffb3c7" text-anchor="middle">mcp_tool.py</text>
+    <rect x="600" y="350" width="150" height="80" rx="8" fill="#1a2f4a" stroke="#ff6b9d" stroke-width="2"/>
+    <text x="675" y="380" font-family="monospace" font-size="12" fill="#ff6b9d" text-anchor="middle">Web Tools</text>
+    <text x="675" y="400" font-family="monospace" font-size="10" fill="#ffb3c7" text-anchor="middle">web_tools.py</text>
+  </g>
+  <g id="gateway-layer">
+    <rect x="100" y="480" width="600" height="80" rx="8" fill="#1a2f4a" stroke="#ffd93d" stroke-width="2"/>
+    <text x="400" y="510" font-family="monospace" font-size="14" fill="#ffd93d" text-anchor="middle">Gateway / Platforms</text>
+    <text x="200" y="535" font-family="monospace" font-size="10" fill="#ffe066" text-anchor="middle">Telegram</text>
+    <text x="320" y="535" font-family="monospace" font-size="10" fill="#ffe066" text-anchor="middle">Discord</text>
+    <text x="440" y="535" font-family="monospace" font-size="10" fill="#ffe066" text-anchor="middle">Slack</text>
+    <text x="560" y="535" font-family="monospace" font-size="10" fill="#ffe066" text-anchor="middle">WhatsApp</text>
+  </g>
+  <g id="connections">
+    <line x1="400" y1="130" x2="400" y2="180" stroke="#4a9eff" stroke-width="2" stroke-dasharray="5,3"/>
+    <line x1="400" y1="300" x2="125" y2="350" stroke="#00d4aa" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <line x1="400" y1="300" x2="300" y2="350" stroke="#00d4aa" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <line x1="400" y1="300" x2="500" y2="350" stroke="#00d4aa" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <line x1="400" y1="300" x2="675" y2="350" stroke="#00d4aa" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <line x1="125" y1="430" x2="400" y2="480" stroke="#ffd93d" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <line x1="300" y1="430" x2="400" y2="480" stroke="#ffd93d" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <line x1="500" y1="430" x2="400" y2="480" stroke="#ffd93d" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <line x1="675" y1="430" x2="400" y2="480" stroke="#ffd93d" stroke-width="1.5" stroke-dasharray="5,3"/>
+  </g>
+</svg>
