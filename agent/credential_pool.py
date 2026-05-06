@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import random
 import threading
@@ -783,7 +784,10 @@ class CredentialPool:
             if next_entry:
                 _next_label = next_entry.label or next_entry.id[:8]
                 logger.info("credential pool: rotated to %s", _next_label)
-            return next_entry
+        # Export after lock is released
+        if next_entry:
+            self._export_active_key_to_skillclaw()
+        return next_entry
 
     def acquire_lease(self, credential_id: Optional[str] = None) -> Optional[str]:
         """Acquire a soft lease on a credential.
@@ -814,7 +818,35 @@ class CredentialPool:
             )
             self._active_leases[chosen.id] = self._active_leases.get(chosen.id, 0) + 1
             self._current_id = chosen.id
-            return chosen.id
+        # Export after lock is released to avoid I/O blocking the pool
+        self._export_active_key_to_skillclaw()
+        return chosen.id
+
+    def _export_active_key_to_skillclaw(self) -> None:
+        """Write the currently active credential key to a shared file for SkillClaw."""
+        try:
+            entry = self.current()
+            if entry is None:
+                return
+            key = entry.runtime_api_key
+            if not key:
+                return
+            record = {
+                "provider": self.provider,
+                "key_id": entry.id,
+                "label": entry.label,
+                "api_key": key,
+            }
+            # Expand ~ manually to avoid pathlib dependency issues in this context
+            raw = os.path.expanduser("~/.skillclaw/shared/hermes-team/current_minimax_key")
+            os.makedirs(os.path.dirname(raw), exist_ok=True)
+            tmp = raw + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(record, f)
+            os.replace(tmp, raw)
+        except Exception:
+            # Export must never crash the pool
+            pass
 
     def release_lease(self, credential_id: str) -> None:
         """Release a previously acquired credential lease."""
