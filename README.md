@@ -310,6 +310,9 @@ progress.md    — 带时间戳的会话日志
 #### 2026-04-25
 - `e7fdd234` docs: rewrite README — fork identity, security hooks, cron health checker, RIA-TV++
 
+#### 2026-05-06
+- feat(credential_pool): export active key to shared file for SkillClaw hot-reload (7c722121)
+
 <!-- CHANGELOG_MARKER -->
 
 ---
