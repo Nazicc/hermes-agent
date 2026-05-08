@@ -1,6 +1,14 @@
 """Extracted from gateway/run.py — GatewayConfigLoader."""
 import logging
+import os
+from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+
+def _get_hermes_home():
+    """Resolve hermes_home at runtime — checks gateway.run._hermes_home for test patching."""
+    import gateway.run as _gr
+    return _gr._hermes_home
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +29,7 @@ class GatewayConfigLoader:
         if not file_path:
             try:
                 import yaml as _y
-                cfg_path = _hermes_home / "config.yaml"
+                cfg_path = _get_hermes_home() / "config.yaml"
                 if cfg_path.exists():
                     with open(cfg_path, encoding="utf-8") as _f:
                         cfg = _y.safe_load(_f) or {}
@@ -32,7 +40,7 @@ class GatewayConfigLoader:
             return []
         path = Path(file_path).expanduser()
         if not path.is_absolute():
-            path = _hermes_home / path
+            path = _get_hermes_home() / path
         if not path.exists():
             logger.warning("Prefill messages file not found: %s", path)
             return []
@@ -61,7 +69,7 @@ class GatewayConfigLoader:
             return prompt
         try:
             import yaml as _y
-            cfg_path = _hermes_home / "config.yaml"
+            cfg_path = _get_hermes_home() / "config.yaml"
             if cfg_path.exists():
                 with open(cfg_path, encoding="utf-8") as _f:
                     cfg = _y.safe_load(_f) or {}
@@ -84,7 +92,7 @@ class GatewayConfigLoader:
         effort = ""
         try:
             import yaml as _y
-            cfg_path = _hermes_home / "config.yaml"
+            cfg_path = _get_hermes_home() / "config.yaml"
             if cfg_path.exists():
                 with open(cfg_path, encoding="utf-8") as _f:
                     cfg = _y.safe_load(_f) or {}
@@ -109,7 +117,7 @@ class GatewayConfigLoader:
         raw = ""
         try:
             import yaml as _y
-            cfg_path = _hermes_home / "config.yaml"
+            cfg_path = _get_hermes_home() / "config.yaml"
             if cfg_path.exists():
                 with open(cfg_path, encoding="utf-8") as _f:
                     cfg = _y.safe_load(_f) or {}
@@ -132,7 +140,7 @@ class GatewayConfigLoader:
         """Load show_reasoning toggle from config.yaml display section."""
         try:
             import yaml as _y
-            cfg_path = _hermes_home / "config.yaml"
+            cfg_path = _get_hermes_home() / "config.yaml"
             if cfg_path.exists():
                 with open(cfg_path, encoding="utf-8") as _f:
                     cfg = _y.safe_load(_f) or {}
@@ -150,7 +158,7 @@ class GatewayConfigLoader:
         if not mode:
             try:
                 import yaml as _y
-                cfg_path = _hermes_home / "config.yaml"
+                cfg_path = _get_hermes_home() / "config.yaml"
                 if cfg_path.exists():
                     with open(cfg_path, encoding="utf-8") as _f:
                         cfg = _y.safe_load(_f) or {}
@@ -168,13 +176,14 @@ class GatewayConfigLoader:
         if not raw:
             try:
                 import yaml as _y
-                cfg_path = _hermes_home / "config.yaml"
+                cfg_path = _get_hermes_home() / "config.yaml"
                 if cfg_path.exists():
                     with open(cfg_path, encoding="utf-8") as _f:
                         cfg = _y.safe_load(_f) or {}
                     raw = str(cfg.get("agent", {}).get("restart_drain_timeout", "") or "").strip()
             except Exception:
                 pass
+        from gateway.restart import parse_restart_drain_timeout, DEFAULT_GATEWAY_RESTART_DRAIN_TIMEOUT
         value = parse_restart_drain_timeout(raw)
         if raw and value == DEFAULT_GATEWAY_RESTART_DRAIN_TIMEOUT:
             try:
@@ -203,7 +212,7 @@ class GatewayConfigLoader:
         if not mode:
             try:
                 import yaml as _y
-                cfg_path = _hermes_home / "config.yaml"
+                cfg_path = _get_hermes_home() / "config.yaml"
                 if cfg_path.exists():
                     with open(cfg_path, encoding="utf-8") as _f:
                         cfg = _y.safe_load(_f) or {}
@@ -231,7 +240,7 @@ class GatewayConfigLoader:
         """Load OpenRouter provider routing preferences from config.yaml."""
         try:
             import yaml as _y
-            cfg_path = _hermes_home / "config.yaml"
+            cfg_path = _get_hermes_home() / "config.yaml"
             if cfg_path.exists():
                 with open(cfg_path, encoding="utf-8") as _f:
                     cfg = _y.safe_load(_f) or {}
@@ -252,7 +261,7 @@ class GatewayConfigLoader:
         """
         try:
             import yaml as _y
-            cfg_path = _hermes_home / "config.yaml"
+            cfg_path = _get_hermes_home() / "config.yaml"
             if cfg_path.exists():
                 with open(cfg_path, encoding="utf-8") as _f:
                     cfg = _y.safe_load(_f) or {}
@@ -270,7 +279,7 @@ class GatewayConfigLoader:
         """Load optional smart cheap-vs-strong model routing config."""
         try:
             import yaml as _y
-            cfg_path = _hermes_home / "config.yaml"
+            cfg_path = _get_hermes_home() / "config.yaml"
             if cfg_path.exists():
                 with open(cfg_path, encoding="utf-8") as _f:
                     cfg = _y.safe_load(_f) or {}

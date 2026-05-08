@@ -4,6 +4,15 @@ from typing import Any, Dict, List, Optional
 
 from gateway.platforms.base import MessageEvent
 
+
+def _get_hermes_home():
+    """Resolve hermes_home at runtime — checks gateway.run._hermes_home for test patching."""
+    import gateway.run as _gr
+    return _gr._hermes_home
+
+_DEFAULT_STUCK_LOOP_THRESHOLD = 3  # restarts while active before auto-suspend
+_DEFAULT_STUCK_LOOP_FILE = ".restart_failure_counts"
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,7 +31,7 @@ class StuckLoopDetector:
         """
         import json
 
-        path = _hermes_home / self._r._STUCK_LOOP_FILE
+        path = _get_hermes_home() / _DEFAULT_STUCK_LOOP_FILE
         try:
             counts = json.loads(path.read_text()) if path.exists() else {}
         except Exception:
@@ -51,7 +60,7 @@ class StuckLoopDetector:
         """
         import json
 
-        path = _hermes_home / self._r._STUCK_LOOP_FILE
+        path = _get_hermes_home() / _DEFAULT_STUCK_LOOP_FILE
         if not path.exists():
             return 0
 
@@ -61,7 +70,7 @@ class StuckLoopDetector:
             return 0
 
         suspended = 0
-        stuck_keys = [k for k, v in counts.items() if v >= self._r._STUCK_LOOP_THRESHOLD]
+        stuck_keys = [k for k, v in counts.items() if v >= _DEFAULT_STUCK_LOOP_THRESHOLD]
 
         for session_key in stuck_keys:
             try:
@@ -100,7 +109,7 @@ class StuckLoopDetector:
         """
         import json
 
-        path = _hermes_home / self._r._STUCK_LOOP_FILE
+        path = _get_hermes_home() / _DEFAULT_STUCK_LOOP_FILE
         if not path.exists():
             return
         try:
@@ -146,7 +155,7 @@ class StuckLoopDetector:
         try:
             import json as _json
             import time as _time
-            marker_path = _hermes_home / ".restart_last_processed.json"
+            marker_path = _get_hermes_home() / ".restart_last_processed.json"
             if not marker_path.exists():
                 return False
             data = _json.loads(marker_path.read_text())

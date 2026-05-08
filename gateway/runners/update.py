@@ -1,9 +1,16 @@
 """Extracted from gateway/run.py — UpdateManager."""
+import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 
 from gateway.platforms.base import MessageEvent
 from gateway.config import Platform
+
+
+def _get_hermes_home():
+    """Resolve hermes_home at runtime — checks gateway.run._hermes_home for test patching."""
+    import gateway.run as _gr
+    return _gr._hermes_home
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +21,35 @@ class UpdateManager:
     def __init__(self, runner):
         self._r = runner
         self._update_prompt_pending = {}
+
+    def handle_pending_update_response(self, source, event):
+        """If an update prompt is pending for this session, intercept the user's response.
+
+        Returns the response text if intercepted (caller should skip normal
+        message handling), or None if no prompt was pending.
+        """
+        from gateway.session import SessionSource
+        session_key = self._r._session_key_for_source(source)
+        if not self._update_prompt_pending.get(session_key):
+            return None
+        self._update_prompt_pending.pop(session_key, None)
+        # Write the user's response to .update_response
+        raw = event.text.strip() if hasattr(event, 'text') else str(event).strip()
+        if raw.lower() in ('y', 'yes'):
+            response_text = 'y'
+        elif raw.lower() in ('n', 'no'):
+            response_text = 'n'
+        else:
+            response_text = raw
+        if response_text:
+            response_path = _get_hermes_home() / ".update_response"
+            try:
+                tmp = response_path.with_suffix(".tmp")
+                tmp.write_text(response_text)
+                tmp.rename(response_path)
+            except OSError:
+                pass
+        return response_text
 
     async def handle_update_command(self, event: MessageEvent) -> str:
         """Handle /update command — update Hermes Agent to the latest version.
@@ -52,9 +88,9 @@ class UpdateManager:
                 "Try running `hermes update` manually in your terminal."
             )
 
-        pending_path = _hermes_home / ".update_pending.json"
-        output_path = _hermes_home / ".update_output.txt"
-        exit_code_path = _hermes_home / ".update_exit_code"
+        pending_path = _get_hermes_home() / ".update_pending.json"
+        output_path = _get_hermes_home() / ".update_output.txt"
+        exit_code_path = _get_hermes_home() / ".update_exit_code"
         session_key = self._r._session_key_for_source(event.source)
         pending = {
             "platform": event.source.platform.value,
@@ -142,11 +178,11 @@ class UpdateManager:
         import json
         import re as _re
 
-        pending_path = _hermes_home / ".update_pending.json"
-        claimed_path = _hermes_home / ".update_pending.claimed.json"
-        output_path = _hermes_home / ".update_output.txt"
-        exit_code_path = _hermes_home / ".update_exit_code"
-        prompt_path = _hermes_home / ".update_prompt.json"
+        pending_path = _get_hermes_home() / ".update_pending.json"
+        claimed_path = _get_hermes_home() / ".update_pending.claimed.json"
+        output_path = _get_hermes_home() / ".update_output.txt"
+        exit_code_path = _get_hermes_home() / ".update_exit_code"
+        prompt_path = _get_hermes_home() / ".update_prompt.json"
 
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout
@@ -243,7 +279,7 @@ class UpdateManager:
                 for p in (pending_path, claimed_path, output_path,
                           exit_code_path, prompt_path):
                     p.unlink(missing_ok=True)
-                (_hermes_home / ".update_response").unlink(missing_ok=True)
+                (_get_hermes_home() / ".update_response").unlink(missing_ok=True)
                 self._update_prompt_pending.pop(session_key, None)
                 return
 
@@ -321,7 +357,7 @@ class UpdateManager:
             for p in (pending_path, claimed_path, output_path,
                       exit_code_path, prompt_path):
                 p.unlink(missing_ok=True)
-            (_hermes_home / ".update_response").unlink(missing_ok=True)
+            (_get_hermes_home() / ".update_response").unlink(missing_ok=True)
             self._update_prompt_pending.pop(session_key, None)
 
 
@@ -339,10 +375,10 @@ class UpdateManager:
         import json
         import re as _re
 
-        pending_path = _hermes_home / ".update_pending.json"
-        claimed_path = _hermes_home / ".update_pending.claimed.json"
-        output_path = _hermes_home / ".update_output.txt"
-        exit_code_path = _hermes_home / ".update_exit_code"
+        pending_path = _get_hermes_home() / ".update_pending.json"
+        claimed_path = _get_hermes_home() / ".update_pending.claimed.json"
+        output_path = _get_hermes_home() / ".update_output.txt"
+        exit_code_path = _get_hermes_home() / ".update_exit_code"
 
         if not pending_path.exists() and not claimed_path.exists():
             return False
@@ -421,7 +457,7 @@ class UpdateManager:
         """Notify the chat that initiated /restart that the gateway is back."""
         import json as _json
 
-        notify_path = _hermes_home / ".restart_notify.json"
+        notify_path = _get_hermes_home() / ".restart_notify.json"
         if not notify_path.exists():
             return
 
