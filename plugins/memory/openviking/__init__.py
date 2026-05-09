@@ -470,26 +470,65 @@ class OpenVikingMemoryProvider(MemoryProvider):
             logger.warning("OpenViking session commit failed: %s", e)
 
     def on_memory_write(self, action: str, target: str, content: str) -> None:
-        """Mirror built-in memory writes to OpenViking as explicit memories."""
-        if not self._client or action != "add" or not content:
+        """Mirror built-in memory writes to OpenViking via dual path.
+
+        Path 1 (immediate): content/write to viking://agent/hermes/memories/ —
+          persists instantly, searchable right away. Survives session crashes.
+        Path 2 (session-buffered): append to session messages — extracted into
+          viking://user/default/memories/ on session commit for graph reasoning.
+        """
+        if not self._client or not content:
             return
 
+        # Map memory tool targets to L2 categories
+        _TARGET_CATEGORY = {
+            "user": "patterns",      # user preferences → patterns
+            "memory": "decisions",   # agent decisions/notes → decisions
+        }
+        category = _TARGET_CATEGORY.get(target, "patterns")
+
         def _write():
-            try:
-                client = _VikingClient(
-                    self._endpoint, self._api_key,
-                    account=self._account, user=self._user, agent=self._agent,
-                )
-                # Add as a user message with memory context so the commit
-                # picks it up as an explicit memory during extraction
-                client.post(f"/api/v1/sessions/{self._session_id}/messages", {
-                    "role": "user",
-                    "parts": [
-                        {"type": "text", "text": f"[Memory note — {target}] {content}"},
-                    ],
-                })
-            except Exception as e:
-                logger.debug("OpenViking memory mirror failed: %s", e)
+            errors = []
+
+            # --- Path 1: Immediate content/write for crash safety ---
+            if action == "add":
+                try:
+                    client = _VikingClient(
+                        self._endpoint, self._api_key,
+                        account=self._account, user=self._user, agent=self._agent,
+                    )
+                    # Generate stable URI from content hash for idempotency
+                    import hashlib
+                    content_hash = hashlib.md5(content.encode()).hexdigest()[:8]
+                    uri = f"viking://agent/hermes/memories/{category}/mem-{content_hash}.md"
+                    client.post("/api/v1/content/write", {
+                        "content": content,
+                        "mode": "create",
+                        "uri": uri,
+                    })
+                except Exception as e:
+                    # content/write may fail if dir missing or resource busy — non-fatal
+                    errors.append(f"content/write: {e}")
+
+            # --- Path 2: Session message for commit-time extraction ---
+            if action in ("add", "replace"):
+                try:
+                    client = _VikingClient(
+                        self._endpoint, self._api_key,
+                        account=self._account, user=self._user, agent=self._agent,
+                    )
+                    label = f"[Memory {action} — {target}]"
+                    client.post(f"/api/v1/sessions/{self._session_id}/messages", {
+                        "role": "user",
+                        "parts": [
+                            {"type": "text", "text": f"{label} {content}"},
+                        ],
+                    })
+                except Exception as e:
+                    errors.append(f"session/message: {e}")
+
+            if errors:
+                logger.debug("OpenViking memory mirror partial failure: %s", "; ".join(errors))
 
         t = threading.Thread(target=_write, daemon=True, name="openviking-memwrite")
         t.start()
