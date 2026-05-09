@@ -446,10 +446,14 @@ class OpenVikingMemoryProvider(MemoryProvider):
         self._sync_thread.start()
 
     def on_session_end(self, messages: List[Dict[str, Any]]) -> None:
-        """Commit the session to trigger memory extraction.
+        """Commit the session to trigger memory extraction, then sync to Hindsight.
 
         OpenViking automatically extracts 6 categories of memories:
         profile, preferences, entities, events, cases, and patterns.
+
+        After commit, key memories are also synced to Hindsight (L2 graph
+        reasoning layer) for entity graph construction, reflect queries,
+        and mental model derivation.
         """
         if not self._client:
             return
@@ -468,6 +472,12 @@ class OpenVikingMemoryProvider(MemoryProvider):
             logger.info("OpenViking session %s committed (%d turns)", self._session_id, self._turn_count)
         except Exception as e:
             logger.warning("OpenViking session commit failed: %s", e)
+            return
+
+        # --- Sync to Hindsight (L2 graph reasoning layer) ---
+        # Extract substantive user/assistant messages for Hindsight retain.
+        # Skip tool calls, system messages, and very short exchanges.
+        self._sync_to_hindsight(messages)
 
     def on_memory_write(self, action: str, target: str, content: str) -> None:
         """Mirror built-in memory writes to OpenViking via dual path.
@@ -702,6 +712,73 @@ class OpenVikingMemoryProvider(MemoryProvider):
             "root_uri": result.get("root_uri", ""),
             "message": "Resource queued for processing. Use viking_search after a moment to find it.",
         }, ensure_ascii=False)
+
+    # ------------------------------------------------------------------
+    # Hindsight L2 graph reasoning sync
+    # ------------------------------------------------------------------
+
+    _HINDSIGHT_URL = os.environ.get("HINDSIGHT_API_URL", "http://localhost:18888")
+    _HINDSIGHT_BANK = "hermes-agent"
+    _HINDSIGHT_MIN_MSG_LEN = 40  # skip trivially short messages
+
+    def _sync_to_hindsight(self, messages: List[Dict[str, Any]]) -> None:
+        """Sync substantive session messages to Hindsight for graph reasoning.
+
+        Filters out tool calls, system messages, and short exchanges.
+        Runs in a daemon thread to avoid blocking session cleanup.
+        """
+        items = []
+        for msg in messages:
+            role = msg.get("role", "")
+            # Only user/assistant content — skip system, tool calls, tool results
+            if role not in ("user", "assistant"):
+                continue
+            # Extract text content
+            parts = msg.get("parts", [])
+            text_parts = []
+            for p in parts:
+                if isinstance(p, dict) and p.get("type") == "text":
+                    t = p.get("text", "").strip()
+                    if len(t) >= self._HINDSIGHT_MIN_MSG_LEN:
+                        text_parts.append(t)
+            if not text_parts:
+                # Fallback: check for simple "content" key
+                content = msg.get("content", "")
+                if isinstance(content, str) and len(content.strip()) >= self._HINDSIGHT_MIN_MSG_LEN:
+                    text_parts.append(content.strip())
+            for t in text_parts:
+                items.append({
+                    "content": f"[{role}] {t[:500]}",  # cap at 500 chars per item
+                    "context": f"session:{self._session_id}",
+                    "tags": ["session-sync", "auto"],
+                })
+
+        if not items:
+            return
+
+        def _do_sync():
+            try:
+                httpx = _lazy_httpx()
+                resp = httpx.post(
+                    f"{self._HINDSIGHT_URL}/v1/default/banks/{self._HINDSIGHT_BANK}/memories",
+                    json={"items": items[:20]},  # cap at 20 items per session
+                    timeout=30.0,
+                )
+                if resp.status_code < 300:
+                    logger.info(
+                        "Hindsight sync: %d items from session %s",
+                        min(len(items), 20), self._session_id,
+                    )
+                else:
+                    logger.debug(
+                        "Hindsight sync failed (%d): %s",
+                        resp.status_code, resp.text[:200],
+                    )
+            except Exception as e:
+                logger.debug("Hindsight sync error (non-fatal): %s", e)
+
+        t = threading.Thread(target=_do_sync, daemon=True, name="hindsight-sync")
+        t.start()
 
 
 # ---------------------------------------------------------------------------
