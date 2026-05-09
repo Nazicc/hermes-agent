@@ -1,10 +1,15 @@
 """Extracted from gateway/run.py — VoiceManager."""
 import asyncio
+import json
 import logging
+import os
+import sys
+import tempfile
 from typing import Any, Dict, List, Optional
 
 from gateway.platforms.base import MessageEvent, MessageType
 from gateway.config import Platform
+from gateway.session import SessionSource
 
 logger = logging.getLogger(__name__)
 

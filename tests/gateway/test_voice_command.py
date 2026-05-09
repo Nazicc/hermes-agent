@@ -1211,8 +1211,8 @@ class TestCallbackWiringOrder:
     def test_callback_set_before_join(self):
         """_handle_voice_channel_join wires callback before calling join."""
         import ast, inspect
-        from gateway.run import GatewayRunner
-        source = inspect.getsource(GatewayRunner._handle_voice_channel_join)
+        from gateway.runners.voice import VoiceManager
+        source = inspect.getsource(VoiceManager.handle_voice_channel_join)
         lines = source.split("\n")
         callback_line = None
         join_line = None
@@ -1678,8 +1678,8 @@ class TestSendVoiceReplyFilename:
     def test_filename_uses_uuid(self):
         """The method uses uuid in the filename, not time-based."""
         import inspect
-        from gateway.run import GatewayRunner
-        source = inspect.getsource(GatewayRunner._send_voice_reply)
+        from gateway.runners.voice import VoiceManager
+        source = inspect.getsource(VoiceManager.send_voice_reply)
         assert "uuid" in source, \
             "_send_voice_reply should use uuid for unique filenames"
         assert "int(time.time())" not in source, \
@@ -1896,8 +1896,8 @@ class TestSendVoiceReplyCleanup:
     def test_cleanup_in_finally(self):
         """The method has cleanup in a finally block, not inside try."""
         import inspect, textwrap, ast
-        from gateway.run import GatewayRunner
-        source = textwrap.dedent(inspect.getsource(GatewayRunner._send_voice_reply))
+        from gateway.runners.voice import VoiceManager
+        source = textwrap.dedent(inspect.getsource(VoiceManager.send_voice_reply))
         tree = ast.parse(source)
         func = tree.body[0]
 

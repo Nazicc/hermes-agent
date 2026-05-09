@@ -516,7 +516,8 @@ class GatewayRunner:
         if name == "_update_prompt_pending":
             return self._update_mgr._update_prompt_pending
         if name == "_UPDATE_ALLOWED_PLATFORMS":
-            return UpdateManager._UPDATE_ALLOWED_PLATFORMS
+            from gateway.runners.update import UpdateManager as _UM
+            return _UM._UPDATE_ALLOWED_PLATFORMS
         if name == "_STUCK_LOOP_THRESHOLD":
             from gateway.runners.stuck_loop import _DEFAULT_STUCK_LOOP_THRESHOLD
             return _DEFAULT_STUCK_LOOP_THRESHOLD
@@ -6363,7 +6364,11 @@ class GatewayRunner:
         stream_interval: float = 4.0,
         timeout: float = 1800.0,
     ) -> None:
-        return await self._update_mgr.watch_update_progress()
+        return await self._update_mgr.watch_update_progress(
+            poll_interval=poll_interval,
+            stream_interval=stream_interval,
+            timeout=timeout,
+        )
     async def _send_update_notification(self) -> bool:
         return await self._update_mgr.send_update_notification()
     async def _send_restart_notification(self) -> None:
@@ -7327,7 +7332,7 @@ class GatewayRunner:
                 return True
             return self._is_session_run_current(session_key, run_generation)
         
-        user_config = _load_gateway_config()
+        user_config = _load_gateway_config(home_dir=_hermes_home)
         platform_key = _platform_config_key(source.platform)
 
         from hermes_cli.tools_config import _get_platform_tools

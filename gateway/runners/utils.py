@@ -262,16 +262,27 @@ def _format_gateway_process_notification(evt: dict) -> str | None:
 # ---------------------------------------------------------------------------
 # Gateway config / model resolution
 # ---------------------------------------------------------------------------
-def _load_gateway_config() -> dict:
-    """Load and parse ~/.hermes/config.yaml, returning {} on any error."""
+def _load_gateway_config(home_dir: "Path | None" = None) -> dict:
+    """Load and parse ~/.hermes/config.yaml, returning {} on any error.
+
+    Parameters
+    ----------
+    home_dir : Path, optional
+        Override the hermes home directory.  When *None*, falls back to the
+        module-level ``_hermes_home`` (which is usually ``~/.hermes``).
+        This parameter exists so that callers (and tests) that monkeypatch
+        ``gateway.run._hermes_home`` can forward the overridden path
+        without needing to also patch ``gateway.runners.utils._hermes_home``.
+    """
+    _home = home_dir or _hermes_home
     try:
-        config_path = _hermes_home / 'config.yaml'
+        config_path = _home / 'config.yaml'
         if config_path.exists():
             import yaml
             with open(config_path, 'r', encoding='utf-8') as f:
                 return yaml.safe_load(f) or {}
     except Exception:
-        logger.debug("Could not load gateway config from %s", _hermes_home / 'config.yaml')
+        logger.debug("Could not load gateway config from %s", _home / 'config.yaml')
     return {}
 
 

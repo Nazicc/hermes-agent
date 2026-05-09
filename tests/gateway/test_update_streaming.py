@@ -36,18 +36,23 @@ def _make_event(text="/update", platform=Platform.TELEGRAM,
 def _make_runner(hermes_home=None):
     """Create a bare GatewayRunner without calling __init__."""
     from gateway.run import GatewayRunner
+    from gateway.runners.update import UpdateManager
     runner = object.__new__(GatewayRunner)
     runner.adapters = {}
     runner._voice_mode = {}
-    runner._update_prompt_pending = {}
     runner._running_agents = {}
     runner._running_agents_ts = {}
     runner._pending_messages = {}
     runner._pending_approvals = {}
     runner._failed_platforms = {}
+    # Create a real UpdateManager so _update_prompt_pending works via delegation
+    runner._update_mgr = UpdateManager(runner)
+    # Also expose the dict directly for tests that set it on the runner
+    runner._update_prompt_pending = runner._update_mgr._update_prompt_pending
+    runner.session_store = MagicMock()
+    runner.session_store.get_or_create_session = MagicMock(return_value=MagicMock())
+    runner.config = MagicMock()
     return runner
-
-
 # ---------------------------------------------------------------------------
 # _gateway_prompt (file-based IPC in main.py)
 # ---------------------------------------------------------------------------
@@ -211,15 +216,15 @@ class TestUpdateCommandGatewayFlag:
         fake_root = tmp_path / "project"
         fake_root.mkdir()
         (fake_root / ".git").mkdir()
-        (fake_root / "gateway").mkdir()
-        (fake_root / "gateway" / "run.py").touch()
-        fake_file = str(fake_root / "gateway" / "run.py")
+        (fake_root / "gateway" / "runners").mkdir(parents=True)
+        (fake_root / "gateway" / "runners" / "update.py").touch()
+        fake_file = str(fake_root / "gateway" / "runners" / "update.py")
         hermes_home = tmp_path / "hermes"
         hermes_home.mkdir()
 
         mock_popen = MagicMock()
         with patch("gateway.run._hermes_home", hermes_home), \
-             patch("gateway.run.__file__", fake_file), \
+             patch("gateway.runners.update.__file__", fake_file), \
              patch("shutil.which", side_effect=lambda x: f"/usr/bin/{x}"), \
              patch("subprocess.Popen", mock_popen):
             result = await runner._handle_update_command(event)

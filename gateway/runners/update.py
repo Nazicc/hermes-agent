@@ -1,6 +1,14 @@
 """Extracted from gateway/run.py — UpdateManager."""
 import asyncio
+import json
 import logging
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from gateway.platforms.base import MessageEvent
@@ -12,11 +20,61 @@ def _get_hermes_home():
     import gateway.run as _gr
     return _gr._hermes_home
 
+
+def _resolve_hermes_bin() -> Optional[list[str]]:
+    """Resolve the Hermes update command as argv parts.
+
+    Tries in order:
+    1. ``shutil.which("hermes")`` — standard PATH lookup
+    2. ``sys.executable -m hermes_cli.main`` — fallback when Hermes is running
+       from a venv/module invocation and the ``hermes`` shim is not on PATH
+
+    Returns argv parts ready for quoting/joining, or ``None`` if neither works.
+    """
+    hermes_bin = shutil.which("hermes")
+    if hermes_bin:
+        return [hermes_bin]
+
+    try:
+        import importlib.util
+        if importlib.util.find_spec("hermes_cli") is not None:
+            return [sys.executable, "-m", "hermes_cli.main"]
+    except Exception:
+        pass
+
+    return None
+
+
+def _is_managed() -> bool:
+    """Check if this is a managed (non-self-updatable) installation."""
+    try:
+        from hermes_cli.config import is_managed
+        return is_managed()
+    except ImportError:
+        return False
+
+
+def _format_managed_message(action: str = "modify this Hermes installation") -> str:
+    """Format a message for managed installations."""
+    try:
+        from hermes_cli.config import format_managed_message
+        return format_managed_message(action)
+    except ImportError:
+        return f"This installation is managed and cannot {action}."
+
 logger = logging.getLogger(__name__)
 
 
 class UpdateManager:
     """Extracted from GatewayRunner — manages update."""
+
+    _UPDATE_ALLOWED_PLATFORMS = frozenset({
+        Platform.TELEGRAM, Platform.DISCORD, Platform.SLACK, Platform.WHATSAPP,
+        Platform.SIGNAL, Platform.MATTERMOST, Platform.MATRIX,
+        Platform.HOMEASSISTANT, Platform.EMAIL, Platform.SMS, Platform.DINGTALK,
+        Platform.FEISHU, Platform.WECOM, Platform.WECOM_CALLBACK, Platform.WEIXIN,
+        Platform.BLUEBUBBLES, Platform.QQBOT, Platform.LOCAL,
+    })
 
     def __init__(self, runner):
         self._r = runner
@@ -25,20 +83,19 @@ class UpdateManager:
     def handle_pending_update_response(self, source, event):
         """If an update prompt is pending for this session, intercept the user's response.
 
-        Returns the response text if intercepted (caller should skip normal
+        Returns a confirmation message if intercepted (caller should skip normal
         message handling), or None if no prompt was pending.
         """
-        from gateway.session import SessionSource
         session_key = self._r._session_key_for_source(source)
         if not self._update_prompt_pending.get(session_key):
             return None
-        self._update_prompt_pending.pop(session_key, None)
-        # Write the user's response to .update_response
-        raw = event.text.strip() if hasattr(event, 'text') else str(event).strip()
-        if raw.lower() in ('y', 'yes'):
-            response_text = 'y'
-        elif raw.lower() in ('n', 'no'):
-            response_text = 'n'
+        raw = (event.text or "").strip()
+        # Accept /approve and /deny as shorthand for yes/no
+        cmd = event.get_command() if hasattr(event, 'get_command') else None
+        if cmd in ("approve", "yes"):
+            response_text = "y"
+        elif cmd in ("deny", "no"):
+            response_text = "n"
         else:
             response_text = raw
         if response_text:
@@ -46,10 +103,13 @@ class UpdateManager:
             try:
                 tmp = response_path.with_suffix(".tmp")
                 tmp.write_text(response_text)
-                tmp.rename(response_path)
-            except OSError:
-                pass
-        return response_text
+                tmp.replace(response_path)
+            except OSError as e:
+                logger.warning("Failed to write update response: %s", e)
+                return f"✗ Failed to send response to update process: {e}"
+        self._update_prompt_pending.pop(session_key, None)
+        label = response_text if len(response_text) <= 20 else response_text[:20] + "…"
+        return f"✓ Sent `{label}` to the update process."
 
     async def handle_update_command(self, event: MessageEvent) -> str:
         """Handle /update command — update Hermes Agent to the latest version.
@@ -59,21 +119,16 @@ class UpdateManager:
         files are written so either the current gateway process or the next one
         can notify the user when the update finishes.
         """
-        import json
-        import shutil
-        import subprocess
-        from datetime import datetime
-        from hermes_cli.config import is_managed, format_managed_message
 
         # Block non-messaging platforms (API server, webhooks, ACP)
         platform = event.source.platform
         if platform not in self._r._UPDATE_ALLOWED_PLATFORMS:
             return "✗ /update is only available from messaging platforms. Run `hermes update` from the terminal."
 
-        if is_managed():
-            return f"✗ {format_managed_message('update Hermes Agent')}"
+        if _is_managed():
+            return f"✗ {_format_managed_message('update Hermes Agent')}"
 
-        project_root = Path(__file__).parent.parent.resolve()
+        project_root = Path(__file__).parent.parent.parent.resolve()  # runners/ -> gateway/ -> project_root
         git_dir = project_root / '.git'
 
         if not git_dir.exists():
@@ -175,8 +230,6 @@ class UpdateManager:
         the messenger.  The user's next message is intercepted by
         ``_handle_message`` and written to ``.update_response``.
         """
-        import json
-        import re as _re
 
         pending_path = _get_hermes_home() / ".update_pending.json"
         claimed_path = _get_hermes_home() / ".update_pending.claimed.json"
@@ -222,7 +275,7 @@ class UpdateManager:
             return
 
         def _strip_ansi(text: str) -> str:
-            return _re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', text)
+            return re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', text)
 
         bytes_sent = 0
         last_stream_time = loop.time()
@@ -372,8 +425,6 @@ class UpdateManager:
         cannot resolve the adapter (e.g. after a gateway restart where the
         platform hasn't reconnected yet).
         """
-        import json
-        import re as _re
 
         pending_path = _get_hermes_home() / ".update_pending.json"
         claimed_path = _get_hermes_home() / ".update_pending.claimed.json"
@@ -420,7 +471,7 @@ class UpdateManager:
 
             if adapter and chat_id:
                 # Strip ANSI escape codes for clean display
-                output = _re.sub(r'\x1b\[[0-9;]*m', '', output).strip()
+                output = re.sub(r'\x1b\[[0-9;]*m', '', output).strip()
                 if output:
                     if len(output) > 3500:
                         output = "…" + output[-3500:]
@@ -455,14 +506,12 @@ class UpdateManager:
 
     async def send_restart_notification(self) -> None:
         """Notify the chat that initiated /restart that the gateway is back."""
-        import json as _json
-
         notify_path = _get_hermes_home() / ".restart_notify.json"
         if not notify_path.exists():
             return
 
         try:
-            data = _json.loads(notify_path.read_text())
+            data = json.loads(notify_path.read_text())
             platform_str = data.get("platform")
             chat_id = data.get("chat_id")
             thread_id = data.get("thread_id")
