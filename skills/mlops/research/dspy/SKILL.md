@@ -1,17 +1,19 @@
 ---
 name: dspy
-description: Build complex AI systems with declarative programming, optimize prompts automatically, create modular RAG systems and agents with DSPy - Stanford NLP's framework for systematic LM programming
-version: 1.0.0
-author: Orchestra Research
-license: MIT
-dependencies: [dspy, openai, anthropic]
-metadata:
-  hermes:
-    tags: [Prompt Engineering, DSPy, Declarative Programming, RAG, Agents, Prompt Optimization, LM Programming, Stanford NLP, Automatic Optimization, Modular AI]
-
+description: "Use when building complex AI systems with declarative programming, optimizing prompts automatically, or creating modular RAG systems and agents with DSPy (Stanford NLP's framework for systematic LM programming). Also use when you need to automatically optimize prompts or model weights from data, build multi-stage pipelines with typed signatures, or create self-improving AI systems. NOT for: simple prompting, non-declarative workflows, or when LangChain is preferred for simple chains."
+category: general
+version: 2.0.0
+...
+author: Stanford NLP + Orchestra Research
+...
+dependencies: [dspy-ai, openai, anthropic]
 ---
 
-# DSPy: Declarative Language Model Programming
+# DSPy - Declarative Language Model Programming
+
+DSPy is Stanford NLP's framework for systematic LM programming. It separates programs (declarative flow) from parameters (LM prompts, weights), enabling automatic optimization of prompts and weights from data.
+
+**GitHub Stars**: 22,000+ | **Created By**: Stanford NLP
 
 ## When to Use This Skill
 
@@ -23,28 +25,29 @@ Use DSPy when you need to:
 - **Improve model outputs systematically** with optimizers
 - **Build RAG systems, agents, or classifiers** with better reliability
 
-**GitHub Stars**: 22,000+ | **Created By**: Stanford NLP
-
 ## Installation
 
-```bash
+bash
 # Stable release
+pip install dspy-ai
+
+# Or via dspy package name
 pip install dspy
 
 # Latest development version
 pip install git+https://github.com/stanfordnlp/dspy.git
 
 # With specific LM providers
-pip install dspy[openai]        # OpenAI
-pip install dspy[anthropic]     # Anthropic Claude
-pip install dspy[all]           # All providers
-```
+pip install dspy-ai[openai]        # OpenAI
+pip install dspy-ai[anthropic]    # Anthropic Claude
+pip install dspy-ai[all]           # All providers
+
 
 ## Quick Start
 
 ### Basic Example: Question Answering
 
-```python
+python
 import dspy
 
 # Configure your language model
@@ -63,11 +66,11 @@ qa = dspy.Predict(QA)
 # Use it
 response = qa(question="What is the capital of France?")
 print(response.answer)  # "Paris"
-```
+
 
 ### Chain of Thought Reasoning
 
-```python
+python
 import dspy
 
 lm = dspy.Claude(model="claude-sonnet-4-5-20250929")
@@ -85,7 +88,7 @@ cot = dspy.ChainOfThought(MathProblem)
 response = cot(problem="If John has 5 apples and gives 2 to Mary, how many does he have?")
 print(response.rationale)  # Shows reasoning steps
 print(response.answer)     # "3"
-```
+
 
 ## Core Concepts
 
@@ -93,7 +96,7 @@ print(response.answer)     # "3"
 
 Signatures define the structure of your AI task (inputs → outputs):
 
-```python
+python
 # Inline signature (simple)
 qa = dspy.Predict("question -> answer")
 
@@ -104,7 +107,7 @@ class Summarize(dspy.Signature):
     summary = dspy.OutputField(desc="bullet points, 3-5 items")
 
 summarizer = dspy.ChainOfThought(Summarize)
-```
+
 
 **When to use each:**
 - **Inline**: Quick prototyping, simple tasks
@@ -117,26 +120,26 @@ Modules are reusable components that transform inputs to outputs:
 #### dspy.Predict
 Basic prediction module:
 
-```python
+python
 predictor = dspy.Predict("context, question -> answer")
 result = predictor(context="Paris is the capital of France",
                    question="What is the capital?")
-```
+
 
 #### dspy.ChainOfThought
 Generates reasoning steps before answering:
 
-```python
+python
 cot = dspy.ChainOfThought("question -> answer")
 result = cot(question="Why is the sky blue?")
 print(result.rationale)  # Reasoning steps
 print(result.answer)     # Final answer
-```
+
 
 #### dspy.ReAct
 Agent-like reasoning with tools:
 
-```python
+python
 from dspy.predict import ReAct
 
 class SearchQA(dspy.Signature):
@@ -151,25 +154,55 @@ def search_tool(query: str) -> str:
 
 react = ReAct(SearchQA, tools=[search_tool])
 result = react(question="When was Python created?")
-```
 
-#### dspy.ProgramOfThought
-Generates and executes code for reasoning:
 
-```python
-pot = dspy.ProgramOfThought("question -> answer")
-result = pot(question="What is 15% of 240?")
-# Generates: answer = 240 * 0.15
-```
+#### dspy.ProgramOfThought / dspy.PAL
+Generates and executes code for reasoning (math/code tasks):
 
-### 3. Optimizers
+python
+class PAL(dspy.Module):
+    def __init__(self):
+        self.generate = dspy.PAL(parallel=['math', 'code'])
+    
+    def forward(self, question):
+        return self.generate(question=question)
+
+pal = PAL()
+result = pal(question="If x = 4 and y = 3, what is x^2 + 2y?")
+print(result.answer)  # uses code-based reasoning
+
+
+#### dspy.MultiChainComparison
+Compares multiple reasoning traces:
+
+python
+class CompareReasoning(dspy.Module):
+    def __init__(self):
+        self.cot = dspy.ChainOfThought("question -> answer")
+        self.compare = dspy.MultiChainComparison("question, reasoning -> best_answer")
+    
+    def forward(self, question):
+        # Generate multiple reasoning chains
+        cot_result = self.cot(question=question)
+        return self.compare(question=question, reasoning=cot_result.rationale)
+
+
+#### dspy.Retrieve
+Retrieval-augmented generation:
+
+python
+retriever = dspy.Retrieve(k=3)
+passages = retriever(question="What is DSPy?").passages
+
+
+### 3. Optimizers (Teleprompters)
 
 Optimizers improve your modules automatically using training data:
 
 #### BootstrapFewShot
 Learns from examples:
 
-```python
+python
 from dspy.teleprompt import BootstrapFewShot
 
 # Training data
@@ -187,12 +220,12 @@ optimizer = BootstrapFewShot(metric=validate_answer, max_bootstrapped_demos=3)
 optimized_qa = optimizer.compile(qa, trainset=trainset)
 
 # Now optimized_qa performs better!
-```
+
 
 #### MIPRO (Most Important Prompt Optimization)
 Iteratively improves prompts:
 
-```python
+python
 from dspy.teleprompt import MIPRO
 
 optimizer = MIPRO(
@@ -206,25 +239,126 @@ optimized_cot = optimizer.compile(
     trainset=trainset,
     num_trials=100
 )
-```
+
+
+#### LabeledFewShot
+Direct example injection (faster than BootstrapFewShot):
+
+python
+from dspy.teleprompt import LabeledFewShot
+
+optimizer = LabeledFewShot(k=3)
+optimized_qa = optimizer.compile(qa, trainset=trainset)
+
+
+#### COPRO (Discrete Prompt Optimization)
+Evolutionary prompt optimization:
+
+python
+from dspy.teleprompt import COPRO
+
+optimizer = COPRO(
+    metric=validate_answer,
+    pop_size=10
+)
+
+optimized_cot = optimizer.compile(cot, trainset=trainset)
+
 
 #### BootstrapFinetune
 Creates datasets for model fine-tuning:
 
-```python
+python
 from dspy.teleprompt import BootstrapFinetune
 
 optimizer = BootstrapFinetune(metric=validate_answer)
 optimized_module = optimizer.compile(qa, trainset=trainset)
 
 # Exports training data for fine-tuning
-```
 
-### 4. Building Complex Systems
 
-#### Multi-Stage Pipeline
+## LM Provider Configuration
 
-```python
+### Anthropic Claude
+
+python
+import dspy
+
+lm = dspy.Anthropic(
+    model="claude-3-opus-20240229",
+    api_key="your-api-key",  # Or set ANTHROPIC_API_KEY env var
+    max_tokens=1000,
+    temperature=0.7
+)
+dspy.settings.configure(lm=lm)
+
+
+### OpenAI
+
+python
+lm = dspy.OpenAI(
+    model="gpt-4",
+    api_key="your-api-key",
+    max_tokens=1000
+)
+dspy.settings.configure(lm=lm)
+
+
+### Azure OpenAI
+
+python
+azure = dspy.AzureOpenAI(
+    model='gpt-4',
+    api_version='2023-05-15',
+    azure_endpoint='...',
+    api_key='...'
+)
+dspy.settings.configure(lm=azure)
+
+
+### Local Models (Ollama)
+
+python
+lm = dspy.OllamaLocal(
+    model="llama3.1",
+    base_url="http://localhost:11434"
+)
+dspy.settings.configure(lm=lm)
+
+
+### Multiple Models
+
+python
+# Different models for different tasks
+cheap_lm = dspy.OpenAI(model="gpt-3.5-turbo")
+strong_lm = dspy.Anthropic(model="claude-3-opus-20240229")
+
+# Use cheap model for retrieval, strong model for reasoning
+with dspy.settings.context(lm=cheap_lm):
+    context = retriever(question)
+
+with dspy.settings.context(lm=strong_lm):
+    answer = generator(context=context, question=question)
+
+
+### Inference Settings
+
+python
+# Per-call override
+result = module(question="...", config={'temperature': 0.9})
+
+# Global default
+dspy.settings.configure(temperature=0.7)
+
+# Caching
+dspy.settings.configure(cache=True)  # enable caching
+
+
+## Building Complex Systems
+
+### Multi-Stage Pipeline
+
+python
 import dspy
 
 class MultiHopQA(dspy.Module):
@@ -249,11 +383,11 @@ class MultiHopQA(dspy.Module):
 # Use the pipeline
 qa_system = MultiHopQA()
 result = qa_system(question="Who wrote the book that inspired the movie Blade Runner?")
-```
 
-#### RAG System with Optimization
 
-```python
+### RAG System with Optimization
+
+python
 import dspy
 from dspy.retrieve.chromadb_rm import ChromadbRM
 
@@ -281,65 +415,13 @@ from dspy.teleprompt import BootstrapFewShot
 
 optimizer = BootstrapFewShot(metric=validate_answer)
 optimized_rag = optimizer.compile(rag, trainset=trainset)
-```
 
-## LM Provider Configuration
-
-### Anthropic Claude
-
-```python
-import dspy
-
-lm = dspy.Claude(
-    model="claude-sonnet-4-5-20250929",
-    api_key="your-api-key",  # Or set ANTHROPIC_API_KEY env var
-    max_tokens=1000,
-    temperature=0.7
-)
-dspy.settings.configure(lm=lm)
-```
-
-### OpenAI
-
-```python
-lm = dspy.OpenAI(
-    model="gpt-4",
-    api_key="your-api-key",
-    max_tokens=1000
-)
-dspy.settings.configure(lm=lm)
-```
-
-### Local Models (Ollama)
-
-```python
-lm = dspy.OllamaLocal(
-    model="llama3.1",
-    base_url="http://localhost:11434"
-)
-dspy.settings.configure(lm=lm)
-```
-
-### Multiple Models
-
-```python
-# Different models for different tasks
-cheap_lm = dspy.OpenAI(model="gpt-3.5-turbo")
-strong_lm = dspy.Claude(model="claude-sonnet-4-5-20250929")
-
-# Use cheap model for retrieval, strong model for reasoning
-with dspy.settings.context(lm=cheap_lm):
-    context = retriever(question)
-
-with dspy.settings.context(lm=strong_lm):
-    answer = generator(context=context, question=question)
-```
 
 ## Common Patterns
 
 ### Pattern 1: Structured Output
 
-```python
+python
 from pydantic import BaseModel, Field
 
 class PersonInfo(BaseModel):
@@ -356,11 +438,11 @@ extractor = dspy.TypedPredictor(ExtractPerson)
 result = extractor(text="John Doe is a 35-year-old software engineer.")
 print(result.person.name)  # "John Doe"
 print(result.person.age)   # 35
-```
+
 
 ### Pattern 2: Assertion-Driven Optimization
 
-```python
+python
 import dspy
 from dspy.primitives.assertions import assert_transform_module, backtrack_handler
 
@@ -380,11 +462,11 @@ class MathQA(dspy.Module):
         )
 
         return dspy.Prediction(solution=solution)
-```
+
 
 ### Pattern 3: Self-Consistency
 
-```python
+python
 import dspy
 from collections import Counter
 
@@ -404,11 +486,11 @@ class ConsistentQA(dspy.Module):
         # Return most common answer
         most_common = Counter(answers).most_common(1)[0][0]
         return dspy.Prediction(answer=most_common)
-```
+
 
 ### Pattern 4: Retrieval with Reranking
 
-```python
+python
 class RerankedRAG(dspy.Module):
     def __init__(self):
         super().__init__()
@@ -432,13 +514,13 @@ class RerankedRAG(dspy.Module):
 
         # Generate answer
         return self.answer(context=context, question=question)
-```
+
 
 ## Evaluation and Metrics
 
 ### Custom Metrics
 
-```python
+python
 def exact_match(example, pred, trace=None):
     """Exact match metric."""
     return example.answer.lower() == pred.answer.lower()
@@ -458,11 +540,11 @@ def f1_score(example, pred, trace=None):
         return 0.0
 
     return 2 * (precision * recall) / (precision + recall)
-```
+
 
 ### Evaluation
 
-```python
+python
 from dspy.evaluate import Evaluate
 
 # Create evaluator
@@ -481,13 +563,13 @@ print(f"Accuracy: {score}")
 score_before = evaluator(qa)
 score_after = evaluator(optimized_qa)
 print(f"Improvement: {score_after - score_before:.2%}")
-```
+
 
 ## Best Practices
 
 ### 1. Start Simple, Iterate
 
-```python
+python
 # Start with Predict
 qa = dspy.Predict("question -> answer")
 
@@ -496,11 +578,11 @@ qa = dspy.ChainOfThought("question -> answer")
 
 # Add optimization when you have data
 optimized_qa = optimizer.compile(qa, trainset=data)
-```
+
 
 ### 2. Use Descriptive Signatures
 
-```python
+python
 # ❌ Bad: Vague
 class Task(dspy.Signature):
     input = dspy.InputField()
@@ -511,14 +593,14 @@ class SummarizeArticle(dspy.Signature):
     """Summarize news articles into 3-5 key points."""
     article = dspy.InputField(desc="full article text")
     summary = dspy.OutputField(desc="bullet points, 3-5 items")
-```
+
 
 ### 3. Optimize with Representative Data
 
-```python
+python
 # Create diverse training examples
 trainset = [
-    dspy.Example(question="factual", answer="...).with_inputs("question"),
+    dspy.Example(question="factual", answer="...").with_inputs("question"),
     dspy.Example(question="reasoning", answer="...").with_inputs("question"),
     dspy.Example(question="calculation", answer="...").with_inputs("question"),
 ]
@@ -526,22 +608,22 @@ trainset = [
 # Use validation set for metric
 def metric(example, pred, trace=None):
     return example.answer in pred.answer
-```
+
 
 ### 4. Save and Load Optimized Models
 
-```python
+python
 # Save
 optimized_qa.save("models/qa_v1.json")
 
 # Load
 loaded_qa = dspy.ChainOfThought("question -> answer")
 loaded_qa.load("models/qa_v1.json")
-```
+
 
 ### 5. Monitor and Debug
 
-```python
+python
 # Enable tracing
 dspy.settings.configure(lm=lm, trace=[])
 
@@ -552,7 +634,17 @@ result = qa(question="...")
 for call in dspy.settings.trace:
     print(f"Prompt: {call['prompt']}")
     print(f"Response: {call['response']}")
-```
+
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| `ModuleNotFoundError: No module named 'dspy'` | `pip install dspy-ai` |
+| Rate limits | Set `max_tokens` lower, use caching, add delays |
+| Poor quality outputs | Increase `temperature`, improve signatures with better `desc` |
+| Compilation too slow | Reduce `trainset` size, use `LabeledFewShot` instead |
+| Retriever missing docs | Ensure corpus is loaded: `dataset = HotPotQA()` |
 
 ## Comparison to Other Approaches
 
@@ -589,5 +681,3 @@ for call in dspy.settings.trace:
 - `references/modules.md` - Detailed module guide (Predict, ChainOfThought, ReAct, ProgramOfThought)
 - `references/optimizers.md` - Optimization algorithms (BootstrapFewShot, MIPRO, BootstrapFinetune)
 - `references/examples.md` - Real-world examples (RAG, agents, classifiers)
-
-

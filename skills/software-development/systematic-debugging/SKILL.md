@@ -1,207 +1,218 @@
 ---
 name: systematic-debugging
-description: >
-  Use when encountering any bug, test failure, or unexpected behavior. 4-phase root
-  cause investigation — gather evidence BEFORE forming hypotheses, distinguish skill failures
-  from agent failures from environment failures. NO fixes without understanding.
-  NOT for: simple typo fixes, one-liner corrections, or when the problem is already isolated.
-trigger:
-  - "debug"
-  - "bug"
-  - "failing"
-  - "error"
-  - "crash"
-  - "not working"
-  - "调试"
-  - "报错"
-  - "unexpected"
-anti_trigger:
-  - "typo"  # simple typo fixes need no debugging
-  - "formatting"  # formatting issues need no root cause analysis
-version: 2.0.0
-license: MIT
-metadata:
-  sources:
-    - SkillClaw: session_judge.py — "Distinguishing skill problems from agent problems from environment problems"
-    - addyosmani/agent-skills: debugging-and-error-recovery
-  hermes:
-    tags: [debugging, troubleshooting, problem-solving, root-cause, investigation, triage]
-    related_skills: [test-driven-development, skill-evolution-principles]
+description: "Use when encountering any bug, test failure, or unexpected behavior. 4-phase root cause investigation: Observe → Hypothesize → Test → Iterate. CRITICAL: No fixes without understanding the problem first. Premature fixes create technical debt. Covers shell scripts, Python, and general debugging. Shell-specific: use `bash -x` traces and understand `set -e` + `[ $? -eq 0 ]` anti-patterns."
+category: general
 ---
 
-## 4-Phase Debugging Protocol
+# Systematic Debugging
 
-### Phase 1 — Triage: Classify the Failure Type
+4-phase root cause investigation. **No fixes without understanding the problem first.** Apply the scientific method to code.
 
-Before writing any code or changing anything, determine WHAT KIND of failure you are facing.
-**This is the most critical step — wrong classification leads to wrong fixes.**
+## When to Use
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  CLASSIFICATION MATRIX                                              │
-│                                                                      │
-│  Is the failure reproducible?                                         │
-│    NO  → Environment issue (flaky, race, timing) → document & retry   │
-│    YES → Continue below                                              │
-│                                                                      │
-│  Did you recently CHANGE this code and it broke?                     │
-│    YES → Revert first, then re-introduce changes incrementally      │
-│    NO  → Continue below                                              │
-│                                                                      │
-│  Did a SKILL give you WRONG or MISSING guidance that caused this?   │
-│    YES → Skill failure → update the skill                           │
-│    NO  → Continue below                                               │
-│                                                                      │
-│  Is this a recurring agent-level mistake (misread, wrong tool,       │
-│  context overflow, subagent misuse)?                                 │
-│    YES → Agent failure → improve your process, NOT the skill         │
-│    NO  → Continue below                                              │
-│                                                                      │
-│  Is the skill MISSING guidance for this specific environment?        │
-│    YES → Environment knowledge gap → extend skill with specifics      │
-│    NO  → Unknown cause → gather more evidence                        │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-### Phase 2 — Gather Evidence (Zero Assumption Mode)
-
-**CRITICAL: Do not form hypotheses yet. Collect facts first.**
-
-For each failure, collect ALL of:
-- Exact error message (copy the full traceback)
-- Command that triggered it
-- Expected behavior vs actual behavior
-- Environment: OS, versions, tool versions
-- Whether it reproduces on retry
-- Whether other similar tasks work
-- Relevant skill(s) that were loaded during failure
-
-```
-Evidence template:
-  Error: <exact error message>
-  Command: <what you ran>
-  Expected: <what should happen>
-  Actual: <what happened>
-  Environment: <OS, versions>
-  Reproducible: <yes/no/sometimes>
-  Skills loaded: <list>
-  Similar tasks: <work/fail>
-```
-
-### Phase 3 — Root Cause (Hypothesis Formation + Testing)
-
-**Only now form hypotheses, ONE AT A TIME.**
-
-```
-FORM → TEST → CONFIRM/REJECT → REPEAT
-
-Wrong approach:
-  "I'll try X, Y, and Z and see which one works"
-
-Right approach:
-  "I think the bug is A because B evidence. Let me test A."
-  [test]
-  [confirmed] → Fix only A, then verify
-  [rejected]  → Log evidence, form new hypothesis
-```
-
-**Priority order for hypothesis testing:**
-1. Simplest explanation first (typo, wrong path, missing dependency)
-2. Most recent change (revert → test → re-introduce)
-3. Skill guidance issue (read the relevant skill again carefully)
-4. Environment-specific quirk (read the environment docs/configs)
-5. Complex interaction (only after simple causes ruled out)
-
-### Phase 4 — Fix + Verify
-
-**Fix only the confirmed root cause. Do not refactor adjacent code.**
-
-```
-FIX:
-  1. Fix ONLY the confirmed root cause
-  2. Write a test that would have caught this bug
-  3. Run the test → must pass
-  4. Run full regression suite
-
-VERIFICATION CHECKLIST:
-  □ Bug reproduces with exact original conditions
-  □ Fix resolves the bug
-  □ Test(s) written and passing
-  □ No new warnings or errors introduced
-  □ Adjacent functionality unaffected
-```
+Activate when:
+- A test fails (unit, integration, e2e)
+- A tool call returns an error or unexpected output
+- The agent produces incorrect or incomplete results
+- Any `Error:`, `Exception:`, `Traceback:`, or non-zero exit code appears
+- Behavior diverges from the spec or user's intent
+- Before writing any fix, hotpatch, or workaround
+- When the agent is about to guess at a solution
 
 ---
 
-## The Skill Problem vs Agent Problem Distinction
+## Phase 1: Observe
 
-**From SkillClaw's session_judge (execution.py):**
+**Collect facts, not assumptions.** Do NOT guess, do NOT fix.
 
-This is the most important insight for debugging in an AI agent context.
+**What to collect:**
+- The exact error message or unexpected output
+- The command/context that triggered it
+- Relevant log entries (`~/.skillclaw/health.log`, stderr, stdout)
+- What changed recently (dependency updates, config changes, new commits)
+- Exit codes and stack traces
+- What was the last working state? What changed?
 
-```
-┌────────────────────────────────────────────────────────────────┐
-│  SKILL FAILURE (fix the skill)                                  │
-│                                                                │
-│  The skill guidance was WRONG, MISSING, or MISLEADING.         │
-│  Examples:                                                      │
-│  - Skill said "use endpoint X" but endpoint X doesn't exist    │
-│  - Skill omitted critical step (e.g., "install dependencies")  │
-│  - Skill described wrong behavior for this specific env        │
-│  → Fix: Update the skill with correct environment knowledge    │
-└────────────────────────────────────────────────────────────────┘
+**Commands:**
+bash
+# Check recent logs
+tail -50 ~/.skillclaw/health.log
 
-┌────────────────────────────────────────────────────────────────┐
-│  AGENT FAILURE (do NOT bloat the skill)                        │
-│                                                                │
-│  The agent misread, misused, or ignored correct skill guidance. │
-│  Examples:                                                      │
-│  - Skill correctly said "use endpoint X" but agent used Y      │
-│  - Agent didn't read the skill before acting                    │
-│  - Agent made wrong tool choice despite correct guidance        │
-│  - Agent introduced a bug in code UNRELATED to skill scope      │
-│  → Fix: Improve agent process, NOT the skill                   │
-│  → The skill already has correct info — the problem is the      │
-│    agent not following it. Don't delete correct info.           │
-└────────────────────────────────────────────────────────────────┘
+# Check git diff for recent changes
+git -C ~/.hermes/hermes-agent log --oneline -5
+git -C ~/.hermes/hermes-agent diff HEAD~1
 
-┌────────────────────────────────────────────────────────────────┐
-│  ENVIRONMENT FAILURE (extend the skill with caveats)           │
-│                                                                │
-│  The environment is unstable or behaves unexpectedly.           │
-│  Examples:                                                      │
-│  - Mock API returns random errors or timeouts                  │
-│  - Docker container starts slowly/flakily                       │
-│  - Network connection drops intermittently                      │
-│  → Fix: Add brief note about known instability, keep it short   │
-│  → Do NOT turn the skill into a retry tutorial                  │
-└────────────────────────────────────────────────────────────────┘
-```
+# For shell scripts: use bash -x for maximum verbosity
+bash -x script.sh 2>&1 | grep -v "^++"
+
+# Check exit codes explicitly after critical commands
+cmd; echo "exit: $?"
+
+
+**Shell-specific checks:**
+- Check file permissions, symlinks, path variables
+- For shell scripts: check `set -e` behavior — script may exit early without error message
+- **CRITICAL shell anti-pattern**: `set -e` + `[ $? -eq 0 ]` always exits because `$?` is the exit code of `[`, which is always 0 or 1 (the equality check itself can fail → `[` exits 1 → `set -e` catches it → script exits). Use a sentinel variable instead: `SKIP=0; python3 ...; [ $? -eq 0 ] && SKIP=1; [ $SKIP -eq 1 ] && exit 0`
+
+**Output of Phase 1:** A concise list of facts (not interpretations).
 
 ---
 
-## Anti-Rationalization Table
+## Phase 2: Hypothesize
 
-These are the excuses agents use to skip proper debugging. Recognize them and reject:
+**State the root cause as a testable claim.** Each hypothesis must be falsifiable.
 
-| Rationalization | Reality |
-|-----------------|---------|
-| "It's probably just a typo" | If you don't know, you haven't debugged yet |
-| "I'll just try X and see if it works" | That's not debugging, that's guessing |
-| "The error is clear enough" | No error message tells you its own cause |
-| "I understand the codebase well enough" | The bug exists precisely where your understanding gaps |
-| "This worked before in similar code" | Different context = different behavior |
-| "Let me just Google it and apply the first answer" | Stack Overflow answers are not debugging |
-| "The test probably has a bug, not my code" | First prove your code correct, then question the test |
-| "I don't have time to debug properly" | Wrong fix costs more time than right fix |
+**Rules:**
+- List ALL plausible hypotheses before choosing one
+- Prefer the simplest explanation that fits all facts
+- Distinguish symptoms from root causes
+- **Never say "I'll try X and see"** — first understand why X would work
+- For shell: Is it `set -e`? Wrong path? Permission? Stale state?
+
+**Hypothesis template:**
+
+H1: <cause> → <effect>
+  Evidence supporting: ...
+  Evidence against: ...
+
+H2: <alternative cause> → <effect>
+  Evidence supporting: ...
+  Evidence against: ...
+
+
+**Common root causes (check in order):**
+1. Environment mismatch (wrong port, missing env var, network)
+2. API/contract change (endpoint, payload schema, auth)
+3. Race condition or ordering dependency
+4. Missing resource or dependency not installed
+5. Configuration error (typo, wrong path)
+6. Logic error in the code itself
 
 ---
 
-## Red Flags (Stop Immediately and Reassess)
+## Phase 3: Test
 
-- You formed a hypothesis before collecting all evidence
-- You applied multiple fixes before running any test
-- You "fixed" something by deleting error messages instead of fixing the cause
-- The error message mentions a line number but you didn't look at that line
-- You're changing code outside the module where the error originates
-- A fix removes error handling rather than correcting the error condition
+**Verify the hypothesis with a targeted test.** One variable at a time.
+
+**Test patterns:**
+bash
+# Test a specific tool/function
+hermes test --tool <name> --case <case-name>
+
+# Verify environment state
+echo $PORT && curl http://127.0.0.1:$PORT/healthz
+
+# Check if resource exists
+ls -la ~/.hermes/<path>
+
+# Run the minimal reproduction
+python3 -c "import <module>; <module>.<func>()"
+
+# For shell: syntax check before running
+bash -n script.sh
+
+
+**Principles:**
+- Test the specific hypothesis, not multiple things
+- If the test passes → hypothesis likely correct, move to Fix
+- If the test fails → hypothesis wrong, return to Phase 2
+- Verify fix doesn't break other paths
+- Run with dry-run flags if available
+
+---
+
+## Phase 4: Iterate
+
+**Refine based on test results.** Once root cause is confirmed, fix it and verify.
+
+**Fixing rules:**
+- Fix the root cause, not the symptom
+- Write a regression test to prevent recurrence
+- If the fix is non-trivial, use incremental-implementation skill
+- After fix: re-run the original failing case, then run full test suite
+
+**Verification checklist:**
+- [ ] Original error is gone
+- [ ] Related functionality still works
+- [ ] Regression test passes
+- [ ] No new errors in health.log
+
+**If hypothesis was wrong:** Return to Phase 2 with new evidence.
+
+**Cleanup:** Document what you learned. Clean up any test/temporary files.
+
+---
+
+## Shell Script Checklist
+
+Before declaring a shell bug fixed, verify:
+- [ ] `bash -n` (syntax check) passes
+- [ ] Script runs to completion without `set -e` early exit
+- [ ] Exit codes are checked explicitly after critical commands
+- [ ] No `[ $? -eq 0 ]` pattern after `set -e` (use sentinel variable)
+- [ ] Paths are absolute, not relative to current directory
+
+---
+
+## Anti-Patterns
+
+1. **Don't fix without understanding** — You WILL create bugs
+2. **`set -e` + `[ $? -eq 0 ]`** — `$?` is the exit code of `[`, not the previous command. Use sentinel variable instead.
+3. **Silent failure** — commands that fail without error messages under `set -e`
+4. **Don't restart services blindly** — Observe first, then restart as a targeted test
+5. **Don't assume API stability** — APIs change. Check the actual contract
+6. **Stale state** — script reads cached files or environment from previous runs
+7. **Path dependency** — assumes current working directory is correct
+
+---
+
+## Debugging the Hermes System Specifically
+
+### SkillClaw proxy issues
+bash
+# Check SkillClaw health
+curl -s http://127.0.0.1:30000/healthz
+# Expected: {"status":"ok"} or {"healthy":true}
+
+# Restart if unhealthy
+kill $(cat ~/.skillclaw/gateway.pid 2>/dev/null) 2>/dev/null
+# Then restart the gateway
+
+
+### Hermes routing issues
+bash
+# Check hermes config
+cat ~/.hermes/hermes-agent/config.yaml 2>/dev/null | grep -A5 "hermes:"
+
+# Verify provider settings
+# Correct: provider=custom, base_url=http://127.0.0.1:30000/v1
+
+
+### MCP tool errors
+bash
+# Check MCP server logs
+tail -30 ~/.hermes/logs/mcp.log
+
+# Test MCP connection
+python3 -c "from mcp.client import Client; c = Client('http://127.0.0.1:3001'); print(c.ping())"
+
+
+### Skill injection failures
+bash
+# Check skills index
+ls ~/.hermes/skills/skills/
+
+# Rebuild index
+rm -f ~/.hermes/.skills_prompt_snapshot.json
+
+# Verify skill file exists
+cat ~/.hermes/skills/skills/<skill-name>/SKILL.md | head -20
+
+
+---
+
+## Related Skills
+
+- `test-driven-development` — Write tests BEFORE fixing (Phase 3 companion)
+- `incremental-implementation` — For complex fixes, break them down
+- `spec-driven-development` — If bug reveals missing spec, use this first

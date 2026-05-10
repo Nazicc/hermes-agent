@@ -1,112 +1,205 @@
 ---
 name: hermes-agent-git-workflow
-description: hermes-agent 工作目录的安全 git + 文件操作规范。创建 skill 后立即 commit；文件写入优先 write_file，失败时用 execute_code；reset hard 会清工作区，永远不要对未 commit 的内容执行。
-triggers:
-  - 创建新的 skill 文件
-  - git 操作后文件丢失
-  - write_file 疑似静默失败
+description: "Safe git operations for hermes-agent skill development. Covers staged-file safety, destructive command guards, nested repo awareness, write-to-commit patterns, and recovery from accidents."
+category: general
 ---
 
-# hermes-agent Git Workflow & File Operation Safety
+# Git Workflow for Hermes Skill Development
 
-## 核心规范
+Safe, repeatable workflow for creating, editing, and committing skill files in the hermes repository. Follow this workflow to avoid data loss from destructive git operations.
 
-### 1. 创建 Skill 后立即 Commit（最重要）
+## Pre-Destruction Checks (MANDATORY)
 
-永远不要让新建的 skill 文件停留在 staged 或 working directory。
-**正确流程：**
+Before running any destructive git command (`reset --hard`, `rebase -i`, `checkout --force`, `clean -fd`), execute ALL of the following:
 
-```bash
-# 方案 A：write_file 后立刻 git add + commit
-write_file(path="~/.hermes/skills/my-new-skill/SKILL.md", content="...")
-git add skills/my-new-skill/SKILL.md && git commit -m "feat(skills): add my-new-skill"
-git push home main
-```
+bash
+# 1. Check working directory — unstaged changes will be LOST
+git status
 
-### 2. write_file 静默失败的 Workaround
+# 2. Check staged files — staged changes will ALSO be LOST under reset --hard
+git diff --cached --name-only
 
-`write_file` 对**不存在的父目录静默失败**。如果文件创建后 `ls` 验证为空，说明目录不存在。
+# 3. Check staged-but-not-committed files in particular
+# These look "safe" in the index but will be wiped by reset --hard
+# If any exist, commit them FIRST
 
-**Workaround：使用 execute_code + Python open()**
+# 4. Check reflog for recent HEAD movements
+git reflog -10
 
-```python
-from hermes_tools import terminal, write_file
-
-# 确保目录存在
-terminal(command="mkdir -p ~/.hermes/skills/my-new-skill")
-
-# 写入文件（execute_code 会抛出异常，不会静默失败）
-content = """---
-name: my-new-skill
-description: ...
----
-
-# Skill Content
-"""
-with open("/Users/can/.hermes/skills/my-new-skill/SKILL.md", "w") as f:
-    f.write(content)
-
-# 验证
-terminal(command="ls -la ~/.hermes/skills/my-new-skill/SKILL.md")
-```
-
-### 3. git reset 的危险等级（按破坏力排序）
-
-| 命令 | 影响 | 恢复方式 |
-|------|------|----------|
-| `git reset HEAD file` | 仅取消 stage | `git add file` |
-| `git reset HEAD -- .` | 取消所有 stage | 重新 `git add` |
-| `git reset --soft HEAD^` | 删除 last commit，保留文件在 staged | `git log` 可查 |
-| `git reset --hard HEAD^` | **删除 last commit + 工作区文件** | `git reflog` + 重建 |
-| `git reset --hard`（无参数） | **清空整个工作区**，所有未 commit 改动丢失 | 只能从 reflog 恢复 commit |
-
-**规则：永远不要对未 commit 的内容执行 `reset --hard`。**
-
-文件级 unstaging 正确方式：
-```bash
-git checkout HEAD -- skills/my-skill/SKILL.md   # 从 HEAD 恢复文件
-# 或
-git restore --source=HEAD --staged --worktree skills/my-skill/SKILL.md
-```
-
-### 4. hermes-agent 的 Remote 架构
-
-```
-home  remote  →  https://github.com/Nazicc/hermes-agent.git（当前活跃）
-origin remote →  https://github.com/nazicc/hermes-home.git（已 force-push，历史无关）
-```
-
-**push 前务必确认目标 remote：**
-```bash
-git remote -v   # 查看所有 remote
-git status      # 确认当前 branch
-```
-
-日常 push 用 `git push home main`，不要默认推 origin。
-
-### 5. Stash 管理
-
-```bash
-# 查看 stash
+# 5. Check stash list
 git stash list
 
-# 选择性 stash（仅相关文件）
-git stash push -m "wip: my changes" -- skills/my-skill/
 
-# 清理无关 stash
+## Staged Files Are NOT Safe From reset --hard
+
+**Critical**: `git reset --hard` moves HEAD AND resets the working tree AND resets the staging area. Any file staged with `git add` but not yet committed will be DELETED from the working tree.
+
+Symptoms of this failure:
+- You created a skill with skill_manage, it was staged, but not committed
+- You ran `git reset --hard` thinking you were cleaning up
+- The skill file is gone from the working tree
+- `git status` shows a clean working directory but the file is missing
+
+## Safe File Operations
+
+**Preferred method: use `execute_code` with Python's `open()`**.
+
+python
+import os
+
+# Ensure parent directory exists
+skill_dir = os.path.expanduser("~/.hermes/skills/hermes-agent/<skill-name>")
+os.makedirs(skill_dir, exist_ok=True)
+
+# Write the skill file
+skill_path = os.path.join(skill_dir, "SKILL.md")
+with open(skill_path, "w") as f:
+    f.write("# Skill content here\n")
+
+
+**Why `execute_code` instead of `write_file`?**
+
+`write_file` silently fails — returning success without creating the file — when the parent directory does not exist. Python's `open()` creates parent directories and raises a clear exception on failure.
+
+**Always verify** the file was written before proceeding:
+
+python
+import os
+assert os.path.exists(skill_path), f"File not created: {skill_path}"
+print(f"Verified: {skill_path}")
+
+
+## Immediate Commit After Skill Creation
+
+After creating or majorly updating a skill, commit immediately:
+
+bash
+git add skills/hermes-agent/<skill-name>/SKILL.md
+git commit -m "feat(skills): add <skill-name> — brief description"
+
+
+**Rule: commit before staging, not after staging**. The safest pattern is to write the file, then immediately commit it.
+
+Do NOT leave skill files staged but uncommitted. "I'll commit after I verify it works" leads to losing the file under a stray reset.
+
+## Staging Safety and Unstaging
+
+If you accidentally stage a file and need to unstage it, use:
+
+bash
+git reset HEAD -- <path>
+
+
+This removes the file from the staging area without modifying the working directory or losing any content.
+
+| Command | Staging area | Working directory | Risk |
+|---|---|---|---|
+| `git reset HEAD -- <path>` | ✓ Removed | ✓ Intact | Safe |
+| `git reset --soft` | ✓ Reset | ✓ Intact | Safe |
+| `git reset --hard` | ✗ Wiped | ✗ Wiped | **Destructive** |
+| `git checkout -- <path>` | ✓ Intact | ✗ Overwritten | Overwrites uncommitted work |
+
+**Never use `git reset --hard`** to unstage files. It deletes all staged and unstaged changes permanently.
+
+## Stashing Changes
+
+**Before running `git stash`, check the scope of what will be stashed.**
+
+bash
+git stash list
+git status   # Shows all files that would be stashed
+
+
+In the hermes repository, there may be many untracked or modified files outside the skill you're working on. Stashing everything creates a bloated stash entry.
+
+**To stash only specific files:**
+
+bash
+git stash push -m "wip: ctf-master skill" -- skills/hermes-agent/hermes-ctf-master/
+
+
+**Drop stashes promptly** after pushing to avoid confusion about which stash corresponds to which work.
+
+## Nested Repo Awareness
+
+The hermes agent may have multiple git repos inside `~/.hermes` at the same time (e.g., ctf-skills, ctf-wiki, awesome-ctf cloned as subdirectories). Before running git commands:
+
+bash
+# Confirm you are in the intended repo
+pwd && git rev-parse --show-toplevel
+
+# If cloning repos for exploration, clone them OUTSIDE ~/.hermes
+# to avoid git-context confusion and accidental resets
+
+
+Common mistake: running `git reset --hard` in `~/.hermes` when you meant to run it in a subdirectory repo. This will wipe staged files in `~/.hermes` itself.
+
+## Recovery Procedures
+
+### After accidental reset --hard
+
+bash
+# Find the commit hash before the reset
+git reflog
+# Output looks like:
+# abc1234 HEAD@{0}: reset: moving to HEAD~1
+# def5678 HEAD@{1}: commit: feat: add my skill
+#
+# Restore by creating a new branch at the lost commit:
+git branch recovery-branch <commit-hash>
+
+# Or directly checkout the lost commit:
+git checkout <commit-hash>
+
+
+### Recovering from a cluttered stash
+
+bash
+# View stash list with context
+git stash list
+
+# Show files in a specific stash entry
+git stash show -p stash@{N}
+
+# Apply only specific files from a stash
+# (use git checkout to restore individual files rather than applying whole stash)
+
+# Drop a single stash entry
 git stash drop stash@{N}
-```
 
-## 防踩坑检查清单
 
-创建 skill 前后：
-- [ ] 父目录存在？不存在则先 `mkdir -p`
-- [ ] `write_file` 后立即 `ls` 验证
-- [ ] `git add` 后立即 `git commit`
-- [ ] `git commit` 后立即 `git push home main`
-- [ ] 确认没有 `reset --hard` 的风险
+## Remote Operations
 
-## 相关记忆
+**Primary remote for skill pushes: `home`**
 
-- `execute_code` 写入文件比 `write_file` 更可靠（异常可见）
-- `git reflog` 是误操作后的救命命令
+bash
+git remote -v
+# home   git@github.com:user/hermes.git (fetch)
+# origin git@github.com:other/repo.git (fetch)
+
+# Push to home:
+git push home main
+
+
+The `origin` remote may contain unrelated force-pushed history. Always confirm the correct remote before pushing.
+
+Before force-pushing:
+
+bash
+git fetch origin
+git log origin/main..HEAD  # review unpushed commits
+
+
+Avoid `git push --force` on main branches. Use `git push --force-with-lease` as a safer alternative.
+
+## Summary Checklist
+
+- [ ] Use `execute_code` (Python `open()`) to create skill files — verifies parent directories exist
+- [ ] Verify file exists immediately after writing
+- [ ] Run pre-destruction checks before any destructive git command
+- [ ] Commit immediately after `git add`
+- [ ] Never use `git reset --hard` to unstage — use `git reset HEAD -- <path>` instead
+- [ ] Use `git stash push -m "message" -- <specific-paths>` for targeted stashes
+- [ ] Verify `pwd` and repo context before running git commands in nested repos
+- [ ] Push to `home` remote, not `origin`
+

@@ -1,442 +1,492 @@
-"""gateway.runners.utils — S1 GatewayUtils extraction.
+"""GatewayUtils — stateless-ish utility methods extracted from GatewayRunner.
 
-Pure utility functions extracted from gateway/run.py to reduce the God Object.
-All functions are module-level (no ``self`` coupling) and can be imported
-directly by tests, other runners, or platform adapters.
+S1 of the God-Object refactor (V2 plan).  Every method here was previously a
+``self._xxx()`` method on GatewayRunner and is now accessed via
+``self.utils.xxx()``.
 
-Re-exported in gateway/run.py for backward compatibility — external callers
-that use ``from gateway.run import _load_gateway_config`` continue to work.
+Design rules:
+- ``self._r`` is the back-reference to the GatewayRunner instance.
+- Only the following runner attributes are accessed (whitelist):
+  ``session_store``, ``config``, ``adapters``, ``_voice_mode``
+- Cross-domain method calls are **forbidden** — use callback injection instead.
 """
 
+from __future__ import annotations
+
+import asyncio
 import json
 import logging
 import os
-import re
-import sys
+import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
-from hermes_constants import get_hermes_home
-
-_hermes_home = get_hermes_home()
+from gateway.platforms.base import MessageEvent, MessageType
+from gateway.session import (
+    SessionContext,
+    SessionSource,
+    build_session_key,
+)
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Docker volume constants (shared with GatewayRunner._warn_if_docker_…)
+# Constants
 # ---------------------------------------------------------------------------
-_DOCKER_VOLUME_SPEC_RE = re.compile(
-    r"^(?P<host>.+):(?P<container>/[^:]+?)(?::(?P<options>[^:]+))?$"
-)
-_DOCKER_MEDIA_OUTPUT_CONTAINER_PATHS = {"/output", "/outputs"}
 
-# ---------------------------------------------------------------------------
-# Interrupt / control flow constants
-# ---------------------------------------------------------------------------
-_INTERRUPT_REASON_STOP = "Stop requested"
-_INTERRUPT_REASON_RESET = "Session reset requested"
-_INTERRUPT_REASON_TIMEOUT = "Execution timed out (inactivity)"
-_INTERRUPT_REASON_SSE_DISCONNECT = "SSE client disconnected"
-_INTERRUPT_REASON_GATEWAY_SHUTDOWN = "Gateway shutting down"
-_INTERRUPT_REASON_GATEWAY_RESTART = "Gateway restarting"
+_hermes_home = Path(os.getenv("HERMES_HOME", os.path.expanduser("~/.hermes")))
 
-_CONTROL_INTERRUPT_MESSAGES = frozenset(
-    {
-        _INTERRUPT_REASON_STOP.lower(),
-        _INTERRUPT_REASON_RESET.lower(),
-        _INTERRUPT_REASON_TIMEOUT.lower(),
-        _INTERRUPT_REASON_SSE_DISCONNECT.lower(),
-        _INTERRUPT_REASON_GATEWAY_SHUTDOWN.lower(),
-        _INTERRUPT_REASON_GATEWAY_RESTART.lower(),
-    }
-)
+_VOICE_MODE_PATH = _hermes_home / "gateway_voice_mode.json"
 
 
 # ---------------------------------------------------------------------------
-# WhatsApp identifier helpers
+# GatewayUtils
 # ---------------------------------------------------------------------------
-def _normalize_whatsapp_identifier(value: str) -> str:
-    """Strip WhatsApp JID/LID syntax down to its stable numeric identifier."""
-    return (
-        str(value or "")
-        .strip()
-        .replace("+", "", 1)
-        .split(":", 1)[0]
-        .split("@", 1)[0]
-    )
 
+class GatewayUtils:
+    """Utility methods that were formerly private methods on GatewayRunner.
 
-def _expand_whatsapp_auth_aliases(identifier: str) -> set:
-    """Resolve WhatsApp phone/LID aliases using bridge session mapping files."""
-    normalized = _normalize_whatsapp_identifier(identifier)
-    if not normalized:
-        return set()
-
-    session_dir = _hermes_home / "whatsapp" / "session"
-    resolved = set()
-    queue = [normalized]
-
-    while queue:
-        current = queue.pop(0)
-        if not current or current in resolved:
-            continue
-
-        resolved.add(current)
-        for suffix in ("", "_reverse"):
-            mapping_path = session_dir / f"lid-mapping-{current}{suffix}.json"
-            if not mapping_path.exists():
-                continue
-            try:
-                mapped = _normalize_whatsapp_identifier(
-                    json.loads(mapping_path.read_text(encoding="utf-8"))
-                )
-            except Exception:
-                continue
-            if mapped and mapped not in resolved:
-                queue.append(mapped)
-
-    return resolved
-
-
-# ---------------------------------------------------------------------------
-# Media / event helpers
-# ---------------------------------------------------------------------------
-def _build_media_placeholder(event) -> str:
-    """Build a text placeholder for media-only events so they aren't dropped.
-
-    When a photo/document is queued during active processing and later
-    dequeued, only .text is extracted.  If the event has no caption,
-    the media would be silently lost.  This builds a placeholder that
-    the vision enrichment pipeline will replace with a real description.
+    Constructed with a back-reference to the runner (``_r``) so that
+    whitelisted runner state can be read without making GatewayUtils a
+    Mixin.
     """
-    from gateway.platforms.base import MessageType
 
-    parts = []
-    media_urls = getattr(event, "media_urls", None) or []
-    media_types = getattr(event, "media_types", None) or []
-    for i, url in enumerate(media_urls):
-        mtype = media_types[i] if i < len(media_types) else ""
-        if mtype.startswith("image/") or getattr(event, "message_type", None) == MessageType.PHOTO:
-            parts.append(f"[User sent an image: {url}]")
-        elif mtype.startswith("audio/"):
-            parts.append(f"[User sent audio: {url}]")
-        else:
-            parts.append(f"[User sent a file: {url}]")
-    return "\n".join(parts)
+    def __init__(self, runner: Any) -> None:
+        self._r = runner
 
+    # -- Voice mode persistence -----------------------------------------------
 
-def _dequeue_pending_event(adapter, session_key: str):
-    """Consume and return the full pending event for a session.
-
-    Queued follow-ups must preserve their media metadata so they can re-enter
-    the normal image/STT/document preprocessing path instead of being reduced
-    to a placeholder string.
-    """
-    return adapter.get_pending_message(session_key)
-
-
-# ---------------------------------------------------------------------------
-# Control interrupt detection
-# ---------------------------------------------------------------------------
-def _is_control_interrupt_message(message: Optional[str]) -> bool:
-    """Return True when an interrupt message is internal control flow."""
-    if not message:
-        return False
-    normalized = " ".join(str(message).strip().split()).lower()
-    return normalized in _CONTROL_INTERRUPT_MESSAGES
-
-
-# ---------------------------------------------------------------------------
-# Skill availability check
-# ---------------------------------------------------------------------------
-def _check_unavailable_skill(command_name: str) -> str | None:
-    """Check if a command matches a known-but-inactive skill.
-
-    Returns a helpful message if the skill exists but is disabled or only
-    available as an optional install. Returns None if no match found.
-    """
-    # Normalize: command uses hyphens, skill names may use hyphens or underscores
-    normalized = command_name.lower().replace("_", "-")
-    try:
-        from tools.skills_tool import _get_disabled_skill_names
-        from agent.skill_utils import get_all_skills_dirs
-        disabled = _get_disabled_skill_names()
-
-        # Check disabled skills across all dirs (local + external)
-        for skills_dir in get_all_skills_dirs():
-            if not skills_dir.exists():
-                continue
-            for skill_md in skills_dir.rglob("SKILL.md"):
-                if any(part in ('.git', '.github', '.hub') for part in skill_md.parts):
-                    continue
-                name = skill_md.parent.name.lower().replace("_", "-")
-                if name == normalized and name in disabled:
-                    return (
-                        f"The **{command_name}** skill is installed but disabled.\n"
-                        f"Enable it with: `hermes skills config`"
-                    )
-
-        # Check optional skills (shipped with repo but not installed)
-        from hermes_constants import get_optional_skills_dir
-        repo_root = Path(__file__).resolve().parent.parent.parent
-        optional_dir = get_optional_skills_dir(repo_root / "optional-skills")
-        if optional_dir.exists():
-            for skill_md in optional_dir.rglob("SKILL.md"):
-                name = skill_md.parent.name.lower().replace("_", "-")
-                if name == normalized:
-                    # Build install path: official/<category>/<name>
-                    rel = skill_md.parent.relative_to(optional_dir)
-                    parts = list(rel.parts)
-                    install_path = f"official/{'/'.join(parts)}"
-                    return (
-                        f"The **{command_name}** skill is available but not installed.\n"
-                        f"Install it with: `hermes skills install {install_path}`"
-                    )
-    except Exception:
-        pass
-    return None
-
-
-# ---------------------------------------------------------------------------
-# Platform / session key helpers
-# ---------------------------------------------------------------------------
-def _platform_config_key(platform) -> str:
-    """Map a Platform enum to its config.yaml key (LOCAL→\"cli\", rest→enum value)."""
-    from gateway.config import Platform
-    return "cli" if platform == Platform.LOCAL else platform.value
-
-
-def _parse_session_key(session_key: str) -> dict | None:
-    """Parse a session key into its component parts.
-
-    Session keys follow the format
-    ``agent:main:{platform}:{chat_type}:{chat_id}[:{extra}...]``.
-    Returns a dict with ``platform``, ``chat_type``, ``chat_id``, and
-    optionally ``thread_id`` keys, or None if the key doesn't match.
-
-    The 6th element is only returned as ``thread_id`` for chat types where
-    it is unambiguous (``dm`` and ``thread``).  For group/channel sessions
-    the suffix may be a user_id (per-user isolation) rather than a
-    thread_id, so we leave ``thread_id`` out to avoid mis-routing.
-    """
-    parts = session_key.split(":")
-    if len(parts) >= 5 and parts[0] == "agent" and parts[1] == "main":
-        result = {
-            "platform": parts[2],
-            "chat_type": parts[3],
-            "chat_id": parts[4],
-        }
-        if len(parts) > 5 and parts[3] in ("dm", "thread"):
-            result["thread_id"] = parts[5]
-        return result
-    return None
-
-
-def _format_gateway_process_notification(evt: dict) -> str | None:
-    """Format a watch pattern event from completion_queue into a [SYSTEM:] message."""
-    evt_type = evt.get("type", "completion")
-    _sid = evt.get("session_id", "unknown")
-    _cmd = evt.get("command", "unknown")
-
-    if evt_type == "watch_disabled":
-        return f"[SYSTEM: {evt.get('message', '')}]"
-
-    if evt_type == "watch_match":
-        _pat = evt.get("pattern", "?")
-        _out = evt.get("output", "")
-        _sup = evt.get("suppressed", 0)
-        text = (
-            f"[SYSTEM: Background process {_sid} matched "
-            f"watch pattern \"{_pat}\".\n"
-            f"Command: {_cmd}\n"
-            f"Matched output:\n{_out}"
-        )
-        if _sup:
-            text += f"\n({_sup} earlier matches were suppressed by rate limit)"
-        text += "]"
-        return text
-
-    return None
-
-
-# ---------------------------------------------------------------------------
-# Gateway config / model resolution
-# ---------------------------------------------------------------------------
-def _load_gateway_config(home_dir: "Path | None" = None) -> dict:
-    """Load and parse ~/.hermes/config.yaml, returning {} on any error.
-
-    Parameters
-    ----------
-    home_dir : Path, optional
-        Override the hermes home directory.  When *None*, falls back to the
-        module-level ``_hermes_home`` (which is usually ``~/.hermes``).
-        This parameter exists so that callers (and tests) that monkeypatch
-        ``gateway.run._hermes_home`` can forward the overridden path
-        without needing to also patch ``gateway.runners.utils._hermes_home``.
-    """
-    _home = home_dir or _hermes_home
-    try:
-        config_path = _home / 'config.yaml'
-        if config_path.exists():
-            import yaml
-            with open(config_path, 'r', encoding='utf-8') as f:
-                return yaml.safe_load(f) or {}
-    except Exception:
-        logger.debug("Could not load gateway config from %s", _home / 'config.yaml')
-    return {}
-
-
-def _resolve_gateway_model(config: dict | None = None) -> str:
-    """Read model from config.yaml — single source of truth.
-
-    Without this, temporary AIAgent instances (memory flush, /compress) fall
-    back to the hardcoded default which fails when the active provider is
-    openai-codex.
-    """
-    cfg = config if config is not None else _load_gateway_config()
-    model_cfg = cfg.get("model", {})
-    if isinstance(model_cfg, str):
-        return model_cfg
-    elif isinstance(model_cfg, dict):
-        return model_cfg.get("default") or model_cfg.get("model") or ""
-    return ""
-
-
-def _resolve_runtime_agent_kwargs() -> dict:
-    """Resolve provider credentials for gateway-created AIAgent instances."""
-    from hermes_cli.runtime_provider import (
-        resolve_runtime_provider,
-        format_runtime_provider_error,
-    )
-
-    try:
-        runtime = resolve_runtime_provider(
-            requested=os.getenv("HERMES_INFERENCE_PROVIDER"),
-        )
-    except Exception as exc:
-        raise RuntimeError(format_runtime_provider_error(exc)) from exc
-
-    return {
-        "api_key": runtime.get("api_key"),
-        "base_url": runtime.get("base_url"),
-        "provider": runtime.get("provider"),
-        "api_mode": runtime.get("api_mode"),
-        "command": runtime.get("command"),
-        "args": list(runtime.get("args") or []),
-        "credential_pool": runtime.get("credential_pool"),
-    }
-
-
-def _resolve_hermes_bin() -> Optional[list[str]]:
-    """Resolve the Hermes update command as argv parts.
-
-    Tries in order:
-    1. ``shutil.which("hermes")`` — standard PATH lookup
-    2. ``sys.executable -m hermes_cli.main`` — fallback when Hermes is running
-       from a venv/module invocation and the ``hermes`` shim is not on PATH
-
-    Returns argv parts ready for quoting/joining, or ``None`` if neither works.
-    """
-    import shutil
-
-    hermes_bin = shutil.which("hermes")
-    if hermes_bin:
-        return [hermes_bin]
-
-    try:
-        import importlib.util
-
-        if importlib.util.find_spec("hermes_cli") is not None:
-            return [sys.executable, "-m", "hermes_cli.main"]
-    except Exception:
-        pass
-
-    return None
-
-
-# ---------------------------------------------------------------------------
-# Setup skill check (static)
-# ---------------------------------------------------------------------------
-def _has_setup_skill() -> bool:
-    """Check if the hermes-agent-setup skill is installed."""
-    try:
-        from tools.skill_manager_tool import _find_skill
-        return _find_skill("hermes-agent-setup") is not None
-    except Exception:
-        return False
-
-
-# ---------------------------------------------------------------------------
-# Adapter TTS helpers (static)
-# ---------------------------------------------------------------------------
-def _set_adapter_auto_tts_disabled(adapter, chat_id: str, disabled: bool) -> None:
-    """Update an adapter's in-memory auto-TTS suppression set if present."""
-    disabled_chats = getattr(adapter, "_auto_tts_disabled_chats", None)
-    if not isinstance(disabled_chats, set):
-        return
-    if disabled:
-        disabled_chats.add(chat_id)
-    else:
-        disabled_chats.discard(chat_id)
-
-
-def _sync_voice_mode_state_to_adapter(adapter, voice_mode: dict) -> None:
-    """Restore persisted /voice off state into a live platform adapter."""
-    disabled_chats = getattr(adapter, "_auto_tts_disabled_chats", None)
-    if not isinstance(disabled_chats, set):
-        return
-    disabled_chats.clear()
-    disabled_chats.update(
-        chat_id for chat_id, mode in voice_mode.items() if mode == "off"
-    )
-
-
-# ---------------------------------------------------------------------------
-# Docker media delivery warning
-# ---------------------------------------------------------------------------
-def warn_docker_media_risky(config) -> None:
-    """Warn when Docker-backed gateways lack an explicit export mount.
-
-    MEDIA delivery happens in the gateway process, so paths emitted by the model
-    must be readable from the host. A plain container-local path like
-    ``/workspace/report.txt`` or ``/output/report.txt`` often exists only inside
-    Docker, so users commonly need a dedicated export mount such as
-    ``host-dir:/output``.
-    """
-    if os.getenv("TERMINAL_ENV", "").strip().lower() != "docker":
-        return
-
-    connected = config.get_connected_platforms()
-    messaging_platforms = [p for p in connected if p not in {Platform.LOCAL, Platform.API_SERVER, Platform.WEBHOOK}]
-    if not messaging_platforms:
-        return
-
-    raw_volumes = os.getenv("TERMINAL_DOCKER_VOLUMES", "").strip()
-    volumes: List[str] = []
-    if raw_volumes:
+    @staticmethod
+    def load_voice_modes() -> Dict[str, str]:
+        """Load persisted voice mode map from disk."""
         try:
-            parsed = json.loads(raw_volumes)
-            if isinstance(parsed, list):
-                volumes = [str(v) for v in parsed if isinstance(v, str)]
+            data = json.loads(_VOICE_MODE_PATH.read_text())
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            return {}
+
+        if not isinstance(data, dict):
+            return {}
+
+        valid_modes = {"off", "voice_only", "all"}
+        return {
+            str(chat_id): mode
+            for chat_id, mode in data.items()
+            if mode in valid_modes
+        }
+
+    def save_voice_modes(self) -> None:
+        """Persist ``runner._voice_mode`` to disk."""
+        try:
+            _VOICE_MODE_PATH.parent.mkdir(parents=True, exist_ok=True)
+            _VOICE_MODE_PATH.write_text(
+                json.dumps(self._r._voice_mode, indent=2)
+            )
+        except OSError as e:
+            logger.warning("Failed to save voice modes: %s", e)
+
+    @staticmethod
+    def set_adapter_auto_tts_disabled(adapter: Any, chat_id: str, disabled: bool) -> None:
+        """Update an adapter's in-memory auto-TTS suppression set if present."""
+        disabled_chats = getattr(adapter, "_auto_tts_disabled_chats", None)
+        if not isinstance(disabled_chats, set):
+            return
+        if disabled:
+            disabled_chats.add(chat_id)
+        else:
+            disabled_chats.discard(chat_id)
+
+    def sync_voice_mode_state_to_adapter(self, adapter: Any) -> None:
+        """Restore persisted /voice off state into a live platform adapter."""
+        disabled_chats = getattr(adapter, "_auto_tts_disabled_chats", None)
+        if not isinstance(disabled_chats, set):
+            return
+        disabled_chats.clear()
+        disabled_chats.update(
+            chat_id for chat_id, mode in self._r._voice_mode.items() if mode == "off"
+        )
+
+    # -- Session key resolution -----------------------------------------------
+
+    def session_key_for_source(self, source: SessionSource) -> str:
+        """Resolve the current session key for a source, honoring gateway config when available."""
+        if hasattr(self._r, "session_store") and self._r.session_store is not None:
+            try:
+                session_key = self._r.session_store._generate_session_key(source)
+                if isinstance(session_key, str) and session_key:
+                    return session_key
+            except Exception:
+                pass
+        config = getattr(self._r, "config", None)
+        return build_session_key(
+            source,
+            group_sessions_per_user=getattr(config, "group_sessions_per_user", True),
+            thread_sessions_per_user=getattr(config, "thread_sessions_per_user", False),
+        )
+
+    # -- Session info formatting ----------------------------------------------
+
+    def format_session_info(self) -> str:
+        """Resolve current model config and return a formatted info block.
+
+        Surfaces model, provider, context length, and endpoint so gateway
+        users can immediately see if context detection went wrong (e.g.
+        local models falling to the 128K default).
+        """
+        # Late import — avoid circular at module level
+        from gateway.run import _resolve_gateway_model, _resolve_runtime_agent_kwargs
+        from agent.model_metadata import get_model_context_length, DEFAULT_FALLBACK_CONTEXT
+
+        model = _resolve_gateway_model()
+        config_context_length = None
+        provider = None
+        base_url = None
+        api_key = None
+
+        try:
+            cfg_path = _hermes_home / "config.yaml"
+            if cfg_path.exists():
+                import yaml as _info_yaml
+                with open(cfg_path, encoding="utf-8") as f:
+                    data = _info_yaml.safe_load(f) or {}
+                model_cfg = data.get("model", {})
+                if isinstance(model_cfg, dict):
+                    raw_ctx = model_cfg.get("context_length")
+                    if raw_ctx is not None:
+                        try:
+                            config_context_length = int(raw_ctx)
+                        except (TypeError, ValueError):
+                            pass
+                    provider = model_cfg.get("provider") or None
+                    base_url = model_cfg.get("base_url") or None
         except Exception:
-            logger.debug("Could not parse TERMINAL_DOCKER_VOLUMES for gateway media warning", exc_info=True)
+            pass
 
-    has_explicit_output_mount = False
-    for spec in volumes:
-        match = _DOCKER_VOLUME_SPEC_RE.match(spec)
-        if not match:
-            continue
-        container_path = match.group("container")
-        if container_path in _DOCKER_MEDIA_OUTPUT_CONTAINER_PATHS:
-            has_explicit_output_mount = True
-            break
+        # Resolve runtime credentials for probing
+        try:
+            runtime = _resolve_runtime_agent_kwargs()
+            provider = provider or runtime.get("provider")
+            base_url = base_url or runtime.get("base_url")
+            api_key = runtime.get("api_key")
+        except Exception:
+            pass
 
-    if has_explicit_output_mount:
-        return
+        context_length = get_model_context_length(
+            model,
+            base_url=base_url or "",
+            api_key=api_key or "",
+            config_context_length=config_context_length,
+            provider=provider or "",
+        )
 
-    logger.warning(
-        "Docker backend is enabled for the messaging gateway but no explicit host-visible "
-        "output mount (for example '/home/user/.hermes/cache/documents:/output') is configured. "
-        "This is fine if the model already emits host-visible paths, but MEDIA file delivery can fail "
-        "for container-local paths like '/workspace/...' or '/output/...'."
-    )
+        # Format context source hint
+        if config_context_length is not None:
+            ctx_source = "config"
+        elif context_length == DEFAULT_FALLBACK_CONTEXT:
+            ctx_source = "default — set model.context_length in config to override"
+        else:
+            ctx_source = "detected"
+
+        # Format context length for display
+        if context_length >= 1_000_000:
+            ctx_display = f"{context_length / 1_000_000:.1f}M"
+        elif context_length >= 1_000:
+            ctx_display = f"{context_length // 1_000}K"
+        else:
+            ctx_display = str(context_length)
+
+        lines = [
+            f"◆ Model: `{model}`",
+            f"◆ Provider: {provider or 'openrouter'}",
+            f"◆ Context: {ctx_display} tokens ({ctx_source})",
+        ]
+
+        # Show endpoint for local/custom setups
+        if base_url and ("localhost" in base_url or "127.0.0.1" in base_url or "0.0.0.0" in base_url):
+            lines.append(f"◆ Endpoint: {base_url}")
+
+        return "\n".join(lines)
+
+    # -- Voice reply decision & delivery --------------------------------------
+
+    def should_send_voice_reply(
+        self,
+        event: MessageEvent,
+        response: str,
+        agent_messages: list,
+        already_sent: bool = False,
+    ) -> bool:
+        """Decide whether the runner should send a TTS voice reply.
+
+        Returns False when:
+        - voice_mode is off for this chat
+        - response is empty or an error
+        - agent already called text_to_speech tool (dedup)
+        - voice input and base adapter auto-TTS already handled it (skip_double)
+          UNLESS streaming already consumed the response (already_sent=True),
+          in which case the base adapter won't have text for auto-TTS so the
+          runner must handle it.
+        """
+        if not response or response.startswith("Error:"):
+            return False
+
+        chat_id = event.source.chat_id
+        voice_mode = self._r._voice_mode.get(chat_id, "off")
+        is_voice_input = (event.message_type == MessageType.VOICE)
+
+        should = (
+            (voice_mode == "all")
+            or (voice_mode == "voice_only" and is_voice_input)
+        )
+        if not should:
+            return False
+
+        # Dedup: agent already called TTS tool
+        has_agent_tts = any(
+            msg.get("role") == "assistant"
+            and any(
+                tc.get("function", {}).get("name") == "text_to_speech"
+                for tc in (msg.get("tool_calls") or [])
+            )
+            for msg in agent_messages
+        )
+        if has_agent_tts:
+            return False
+
+        # Dedup: base adapter auto-TTS already handles voice input
+        # (play_tts plays in VC when connected)
+        adapter = self._r.adapters.get(event.source.platform)
+        if (
+            is_voice_input
+            and not already_sent
+            and hasattr(adapter, "play_tts")
+        ):
+            return False
+
+        return True
+
+    async def send_voice_reply(self, event: MessageEvent, text: str) -> None:
+        """Generate TTS audio and send as a voice message before the text reply."""
+        import uuid as _uuid
+        audio_path = None
+        actual_path = None
+        try:
+            from tools.tts_tool import text_to_speech_tool, _strip_markdown_for_tts
+
+            tts_text = _strip_markdown_for_tts(text[:4000])
+            if not tts_text:
+                return
+
+            # Use .mp3 extension so edge-tts conversion to opus works correctly.
+            # The TTS tool may convert to .ogg — use file_path from result.
+            audio_path = os.path.join(
+                tempfile.gettempdir(), "hermes_voice",
+                f"tts_reply_{_uuid.uuid4().hex[:12]}.mp3",
+            )
+            os.makedirs(os.path.dirname(audio_path), exist_ok=True)
+
+            result_json = await asyncio.to_thread(
+                text_to_speech_tool, text=tts_text, output_path=audio_path
+            )
+            result = json.loads(result_json)
+
+            # Use the actual file path from result (may differ after opus conversion)
+            actual_path = result.get("file_path", audio_path)
+            if not result.get("success") or not os.path.isfile(actual_path):
+                logger.warning("Auto voice reply TTS failed: %s", result.get("error"))
+                return
+
+            adapter = self._r.adapters.get(event.source.platform)
+
+            # If connected to a voice channel, play there instead of sending a file
+            guild_id = self.get_guild_id(event)
+            if (guild_id
+                    and hasattr(adapter, "play_in_voice_channel")
+                    and hasattr(adapter, "is_in_voice_channel")
+                    and adapter.is_in_voice_channel(guild_id)):
+                await adapter.play_in_voice_channel(guild_id, actual_path)
+            elif adapter and hasattr(adapter, "send_voice"):
+                send_kwargs: Dict[str, Any] = {
+                    "chat_id": event.source.chat_id,
+                    "audio_path": actual_path,
+                    "reply_to": event.message_id,
+                }
+                if event.source.thread_id:
+                    send_kwargs["metadata"] = {"thread_id": event.source.thread_id}
+                await adapter.send_voice(**send_kwargs)
+        except Exception as e:
+            logger.warning("Auto voice reply failed: %s", e, exc_info=True)
+        finally:
+            for p in {audio_path, actual_path} - {None}:
+                try:
+                    os.unlink(p)
+                except OSError:
+                    pass
+
+    async def deliver_media_from_response(
+        self,
+        response: str,
+        event: MessageEvent,
+        adapter: Any,
+    ) -> None:
+        """Extract MEDIA: tags and local file paths from a response and deliver them.
+
+        Called after streaming has already sent the text to the user, so the
+        text itself is already delivered — this only handles file attachments
+        that the normal _process_message_background path would have caught.
+        """
+        from pathlib import Path as _Path
+
+        try:
+            media_files, _ = adapter.extract_media(response)
+            _, cleaned = adapter.extract_images(response)
+            local_files, _ = adapter.extract_local_files(cleaned)
+
+            _thread_meta = {"thread_id": event.source.thread_id} if event.source.thread_id else None
+
+            _AUDIO_EXTS = {'.ogg', '.opus', '.mp3', '.wav', '.m4a'}
+            _VIDEO_EXTS = {'.mp4', '.mov', '.avi', '.mkv', '.webm', '.3gp'}
+            _IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
+
+            for media_path, is_voice in media_files:
+                try:
+                    ext = _Path(media_path).suffix.lower()
+                    if ext in _AUDIO_EXTS:
+                        await adapter.send_voice(
+                            chat_id=event.source.chat_id,
+                            audio_path=media_path,
+                            metadata=_thread_meta,
+                        )
+                    elif ext in _VIDEO_EXTS:
+                        await adapter.send_video(
+                            chat_id=event.source.chat_id,
+                            video_path=media_path,
+                            metadata=_thread_meta,
+                        )
+                    elif ext in _IMAGE_EXTS:
+                        await adapter.send_image_file(
+                            chat_id=event.source.chat_id,
+                            image_path=media_path,
+                            metadata=_thread_meta,
+                        )
+                    else:
+                        await adapter.send_document(
+                            chat_id=event.source.chat_id,
+                            file_path=media_path,
+                            metadata=_thread_meta,
+                        )
+                except Exception as e:
+                    logger.warning("[%s] Post-stream media delivery failed: %s", adapter.name, e)
+
+            for file_path in local_files:
+                try:
+                    ext = _Path(file_path).suffix.lower()
+                    if ext in _IMAGE_EXTS:
+                        await adapter.send_image_file(
+                            chat_id=event.source.chat_id,
+                            image_path=file_path,
+                            metadata=_thread_meta,
+                        )
+                    else:
+                        await adapter.send_document(
+                            chat_id=event.source.chat_id,
+                            file_path=file_path,
+                            metadata=_thread_meta,
+                        )
+                except Exception as e:
+                    logger.warning("[%s] Post-stream file delivery failed: %s", adapter.name, e)
+
+        except Exception as e:
+            logger.warning("Post-stream media delivery failed: %s", e)
+
+    # -- Setup skill check ----------------------------------------------------
+
+    @staticmethod
+    def has_setup_skill() -> bool:
+        """Check if the hermes-agent-setup skill is installed."""
+        try:
+            from tools.skill_manager_tool import _find_skill
+            return _find_skill("hermes-agent-setup") is not None
+        except Exception:
+            return False
+
+    # -- Background notifications mode ----------------------------------------
+
+    @staticmethod
+    def load_background_notifications_mode() -> str:
+        """Load background process notification mode from config or env var.
+
+        Modes:
+          - ``all``    — push running-output updates *and* the final message (default)
+          - ``result`` — only the final completion message (regardless of exit code)
+          - ``error``  — only the final message when exit code is non-zero
+          - ``off``    — no watcher messages at all
+        """
+        mode = os.getenv("HERMES_BACKGROUND_NOTIFICATIONS", "")
+        if not mode:
+            try:
+                import yaml as _y
+                cfg_path = _hermes_home / "config.yaml"
+                if cfg_path.exists():
+                    with open(cfg_path, encoding="utf-8") as _f:
+                        cfg = _y.safe_load(_f) or {}
+                    raw = cfg.get("display", {}).get("background_process_notifications")
+                    if raw is False:
+                        mode = "off"
+                    elif raw not in (None, ""):
+                        mode = str(raw)
+            except Exception:
+                pass
+        mode = (mode or "all").strip().lower()
+        valid = {"all", "result", "error", "off"}
+        if mode not in valid:
+            logger.warning(
+                "Unknown background_process_notifications '%s', defaulting to 'all'",
+                mode,
+            )
+            return "all"
+        return mode
+
+    # -- Session env (contextvars) --------------------------------------------
+
+    @staticmethod
+    def set_session_env(context: SessionContext) -> list:
+        """Set session context variables for the current async task.
+
+        Uses ``contextvars`` instead of ``os.environ`` so that concurrent
+        gateway messages cannot overwrite each other's session state.
+
+        Returns a list of reset tokens; pass them to ``clear_session_env``
+        in a ``finally`` block.
+        """
+        from gateway.session_context import set_session_vars
+        return set_session_vars(
+            platform=context.source.platform.value,
+            chat_id=context.source.chat_id,
+            chat_name=context.source.chat_name or "",
+            thread_id=str(context.source.thread_id) if context.source.thread_id else "",
+            user_id=str(context.source.user_id) if context.source.user_id else "",
+            user_name=str(context.source.user_name) if context.source.user_name else "",
+            session_key=context.session_key,
+        )
+
+    @staticmethod
+    def clear_session_env(tokens: list) -> None:
+        """Restore session context variables to their pre-handler values."""
+        from gateway.session_context import clear_session_vars
+        clear_session_vars(tokens)
+
+    # -- Discord guild ID extraction ------------------------------------------
+
+    @staticmethod
+    def get_guild_id(event: MessageEvent) -> Optional[int]:
+        """Extract Discord guild_id from the raw message object."""
+        raw = getattr(event, "raw_message", None)
+        if raw is None:
+            return None
+        # Slash command interaction
+        if hasattr(raw, "guild_id") and raw.guild_id:
+            return int(raw.guild_id)
+        # Regular message
+        if hasattr(raw, "guild") and raw.guild:
+            return raw.guild.id
+        return None

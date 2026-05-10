@@ -31,15 +31,8 @@
 §
 [CAVEMAN · 2026-05-03] hermes-agent caveman skill(cb219f96)：输出/输入双压缩，强度lite/full/ultra/wenyan-lite/wenyan/wenyan-ultra，配置~/.config/caveman/config.json
 §
+[CTF] 4仓+4skill: ctf-master/pwn/crypto-comprehensive/skills-toolkit
 §
-[CTF · 2026-05-04] CTF体系融合4仓+入口skill：
-  ①~/ctf-wiki/ (14方向理论) ②~/google-ctf/ (2017-2025真实challenge)
-  ③~/awesome-ctf/ (工具链) ④~/ctf-skills/ (脚本模板)
-  4个skill已push到hermes-agent: ctf-master(入口), ctf-pwn(ROP/fmtstr/tcache/House-of×7),
-  ctf-crypto-comprehensive(RSACTFTool/Coppersmith/AES), ctf-skills-toolkit(实测脚本)
+[MEMORY · 2026-05-10] 记忆分层架构P0-P4全部完成✅。P0:14条L0→L2写入。P1:双路径(content/write即时+session-buffered)。P2:Hindsight整合为L2图推理层(on_session_end→_sync_to_hindsight)。P3:evolve_server验证仅写L3(evolution.db)无L2泄露。P4:memory_recall统一检索L2>hindsight>L3+去重+Hindsight reflect低结果时触发。commits:0565e25→a36a5e9→dac448a已push。工具:6个(viking_search/read/browse/remember/add_resource/memory_recall)
 §
-[CTF · 2026-05-04] ctf-wiki pwn独家:ROP(basic+medium+fancy=1133行)/ptmalloc2(★tcache=2459行,unlink=1431行)/fmtstr(823行)/House-of×7/UAF/IntegerOverflow
-§
-[CTF · 2026-05-04] CTF crypto工具:RSACTFTool/XORTool/QuipQuip/CyberChef; crypto深度:coppersmith/rsa_module(641行)/hash碰撞/LLL格基
-§
-[CTF · 2026-05-04] misc工具:Wireshark/volatility3/steghide/zsteg/AperiSolve; misc取证:archive/disk-memory/traffic/recon
+[MEMTEST · 2026-05-11] 记忆系统测试：MCP长会话断连(需重启)但直连API全通。Hindsight✓ recall✓ reflect✓。Viking✓ remember✓ search✓。SimpleMem LanceDB有数据。session_search✓。Evolution DB 10条(无genes表)。context_bloat已修。Honcho blocked:MiniMax 429

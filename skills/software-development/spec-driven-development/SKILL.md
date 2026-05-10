@@ -1,70 +1,58 @@
 ---
 name: spec-driven-development
-description: >-
-  Spec-driven development (SDD) for AI coding assistants — inspired by OpenSpec (Fission-AI/OpenSpec).
-  Use when starting a new project, feature, or significant change and no specification exists yet.
-  Use when requirements are unclear, ambiguous, or only exist as a vague idea.
-  Integrates: proposal → specs → design → tasks → implement → regression tests → bug-free verify → launch.
-trigger:
-  - spec
-  - specification
-  - SDD
-  - "write a spec"
-  - "before code"
-  - "no spec"
-  - "requirements are unclear"
-anti_trigger:
-  - debugging
-  - "quick fix"
-  - "typo"
-source: hermes-agent
-version: 3.1.0
-license: MIT
-metadata:
-  hermes:
-    tags: [spec, specification, SDD, OpenSpec, development, proposal, design, tasks, regression, launch]
-    related_skills: [test-driven-development, systematic-debugging, writing-plans, incremental-implementation, requesting-code-review]
+description: "Spec-driven development (SDD) for AI coding assistants — inspired by OpenSpec (Fission-AI/OpenSpec). Use when starting a new project, feature, or significant change and no specification exists yet. Use when requirements are unclear, ambiguous, or only exist as a vague idea. Use when multiple stakeholders have conflicting expectations or the technical approach is not obvious. Integrates with writing-plans, incremental-implementation, and test-driven-development. NOT for: well-specified tasks, exploratory prototyping, hotfixes under time pressure, one-off scripts, incremental bugfixes, or when moving fast is more important than alignment."
+category: general
 ---
-
-# Spec-Driven Development (SDD)
-
-Inspired by [OpenSpec](https://github.com/Fission-AI/OpenSpec) — an AI-native spec-driven development framework.
 
 ## Core Philosophy
 
-```
 fluid not rigid → iterative not waterfall → easy not complex →
 built for brownfield not just greenfield → scalable from personal projects to enterprises
-```
 
 Every non-trivial change goes through a structured artifact pipeline before any code is written.
 
 ---
 
+## When to Use SDD
+
+**Appropriate when:**
+- No specification exists yet for the feature or change
+- Requirements are unclear, ambiguous, or only exist as vague ideas
+- Multiple stakeholders have conflicting expectations
+- The technical approach is not obvious
+- Significant architectural decisions need to be made
+- You want to prevent rework by aligning on scope first
+
+**NOT appropriate when:**
+- Requirements are already clear and stable
+- The change is a well-defined bugfix
+- You need to move fast and the cost of misalignment is low
+- The task is trivial (one-liner, obvious rename, etc.)
+- Exploratory prototyping (use iterative approaches instead)
+- Hotfixes under time pressure
+- Incremental bugfixes with existing test coverage
+
+---
+
 ## Artifact Pipeline
 
-```
-proposal.md → specs/*.md → design.md → tasks.md → IMPLEMENT → REGRESSION → VERIFY → LAUNCH
-```
+IDEA → PROPOSAL → SPECS → DESIGN → TASKS → IMPLEMENT → REGRESSION → VERIFY → LAUNCH
 
 Each artifact has explicit dependencies — later artifacts cannot be created before earlier ones are complete.
 
 ---
 
-## Surface Assumptions First
+## Directory Structure
 
-Before writing any spec content, **always surface your assumptions**:
-
-```
-ASSUMPTIONS I'M MAKING:
-1. This is a web application (not native mobile)
-2. Authentication uses session-based cookies (not JWT)
-3. The database is PostgreSQL (based on existing Prisma schema)
-4. We're targeting modern browsers only (no IE11)
-→ Correct me now or I'll proceed with these.
-```
-
-Don't silently fill in ambiguous requirements. The spec's entire purpose is to surface misunderstandings *before* code gets written — assumptions are the most dangerous form of misunderstanding.
+SPEC/
+├── proposal.md          # Phase 1 output
+├── specs/
+│   ├── 001-feature.md    # One spec per logical piece
+│   ├── 002-api.md
+│   └── 00N-feature.md
+├── design.md             # Phase 3 output
+├── tasks.md              # Phase 4 output
+└── verify.md             # Phase 7 output
 
 ---
 
@@ -74,10 +62,10 @@ Don't silently fill in ambiguous requirements. The spec's entire purpose is to s
 
 Answer the "why" before the "what":
 
-```markdown
+markdown
 # Proposal: <short title>
 
-## Problem
+## Problem Statement
 What problem does this solve? Why does it matter now?
 
 ## Success Criteria
@@ -86,14 +74,27 @@ How do we know this succeeded? (measurable outcomes)
 ## Scope
 What is in scope? What is explicitly out of scope?
 
+## Constraints
+What are the boundaries? Budget, time, tech stack, SLAs.
+
+## Risks
+What could go wrong? What are the unknowns?
+
 ## Alternatives Considered
 What else was considered? Why was this approach chosen?
 
 ## Rollback Plan
 How do we undo this if it goes wrong?
-```
 
-**Rule**: A proposal with no clear problem statement and success criteria is incomplete. Do not proceed to specs.
+## Stakeholders
+Who cares about this? Who approves?
+
+
+**Do Not Proceed to Specs Without**:
+- [ ] Problem statement that a reasonable engineer would call "specific"
+- [ ] At least one concrete success criterion
+- [ ] Risks identified (even if mitigation is TBD)
+- [ ] Rollback plan documented
 
 ---
 
@@ -101,67 +102,57 @@ How do we undo this if it goes wrong?
 
 **File**: `SPEC/specs/<feature-name>.md` (one file per logical feature)
 
-### Reframe Instructions as Success Criteria
+Answer: **What exactly will we build?**
 
-When receiving vague requirements, translate them into concrete conditions:
+markdown
+# Spec: <feature name>
 
-```
-REQUIREMENT: "Make the dashboard faster"
+## Overview
+One-paragraph summary of what this feature does.
 
-REFRAMED SUCCESS CRITERIA:
-- Dashboard LCP < 2.5s on 4G connection
-- Initial data load completes in < 500ms
-- No layout shift during load (CLS < 0.1)
-→ Are these the right targets?
-```
+## Functional Requirements
 
-This lets you loop, retry, and problem-solve toward a clear goal rather than guessing what "faster" means.
-
-### Six Core Spec Areas
-
-```markdown
-# Spec: [Project/Feature Name]
-
-## Objective
-[What we're building and why. User stories or acceptance criteria.]
-
-## Tech Stack
-[Framework, language, key dependencies with versions]
-
-## Commands
-[Build, test, lint, dev — full commands]
-
-## Project Structure
-[Directory layout with descriptions]
-
-## Code Style
-[Example snippet + key conventions]
-
-## Testing Strategy
-[Framework, test locations, coverage requirements, test levels]
-
-## Boundaries
-- Always: [...]
-- Ask first: [...]
-- Never: [...]
-
-## Success Criteria
-[How we'll know this is done — specific, testable conditions]
-
-## Open Questions
-[Anything unresolved that needs human input]
-```
-
-Functional requirements use Gherkin-style:
-
-```
 ### FR-1: <requirement title>
-**Given** [precondition]
-**When** [action]
+**Given** [precondition]  
+**When** [action]  
 **Then** [observable outcome]
-```
+
+### FR-2: ...
+
+## Non-Functional Requirements
+- Performance: ...
+- Security: ...
+- Compatibility: ...
+
+## Data Structures
+
+### Type: [Name]
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | UUID | Yes | Primary key |
+
+## Error Handling
+
+| Condition | Behavior |
+|-----------|----------|
+| Invalid input | Return 400 with details |
+
+## Edge Cases
+- EC-1: <case> → <behavior>
+- EC-2: ...
+
+## Acceptance Criteria
+- [ ] Criterion 1
+- [ ] Criterion 2
+
 
 **Rule**: Specs must be concrete and verifiable. "The system should be fast" is not a spec. "Response time < 200ms at P99 under 1000 RPS" is.
+
+**Do Not Proceed to Design Without**:
+- [ ] Every core feature has a Gherkin-style acceptance criterion
+- [ ] Error conditions enumerated
+- [ ] Data structures defined with field-level precision
+- [ ] Edge cases explicitly listed
 
 ---
 
@@ -169,34 +160,54 @@ Functional requirements use Gherkin-style:
 
 **File**: `SPEC/design.md`
 
-```markdown
+Answer: **How will we build it?**
+
+markdown
 # Design: <title>
 
 ## Architecture
 [Diagrams, ASCII art, or text description of the architecture]
 
-## Data Model
-[Schema, ER diagram, or data structures]
+## Component: [Name]
 
-## API Design (if applicable)
-[Endpoints, request/response shapes, error codes]
+### Responsibility
+What this component owns and does.
+
+### Public API
+
+#### `method_name(params) -> ReturnType`
+**File:** `src/path/to/file.py`
+**Description:** [1 sentence]
+
+## Data Flow
+[How data moves through the system]
 
 ## Dependencies
-[- External services / libraries
-- Internal modules
-- Configuration changes]
+- External: [list]
+- Internal: [list]
+- Configuration: [list]
 
 ## Security Considerations
-[- Input validation
+- Input validation
 - Auth/authz
 - Data handling
-- Secrets management]
+- Secrets management
+
+## Cross-Platform Concerns
+- macOS / Linux / Windows differences
+- Browser compatibility (if applicable)
 
 ## Migration / Backward Compatibility
 How does this change affect existing users? Is migration required?
-```
+
 
 **Rule**: Design must specify the "how" with enough detail that a developer could implement it without asking further questions. "Use a cache" is not a design. "Use an in-memory LRU cache with 1000-entry limit and TTL of 5 minutes, evicted on process restart" is.
+
+**Do Not Proceed to Tasks Without**:
+- [ ] Architecture clearly described
+- [ ] Every component has a defined responsibility
+- [ ] Security considerations addressed
+- [ ] Complex logic has code examples or detailed descriptions
 
 ---
 
@@ -204,66 +215,85 @@ How does this change affect existing users? Is migration required?
 
 **File**: `SPEC/tasks.md`
 
-```markdown
+Answer: **Exactly what do we do, in what order?**
+
+markdown
 # Tasks: <title>
+
+## Task Ordering Principles
+1. **Foundation first**: Infrastructure, types, interfaces before implementations
+2. **Dependency order**: If B depends on A, A is Task 1
+3. **Thin slices**: Each task should be independently testable
 
 ## Task Checklist
 
-### Setup
-- [ ] Task 1
-- [ ] Task 2
+### Task 1: [Short Title]
+**Spec Reference:** `SPEC/specs/00X-feature.md`
+**Design Reference:** `SPEC/design.md#component-name`
 
-### Core Implementation
-- [ ] Task 3
-- [ ] Task 4
+#### Steps
+1. [File: `path/to/file.ext`]
+   
+   [exact code or diff]
+   
+2. [Verify]
+   bash
+   command to verify
+   
 
-### Testing
-- [ ] Task 5
+#### Verification
+- [ ] Command X passes
+- [ ] Output contains Y
 
-### Documentation
-- [ ] Task 6
+---
 
-## Task Dependencies
-- Task 3 requires Task 1 to be complete
-- Task 4 can run in parallel with Task 3
-```
+### Task 2: [Short Title]
+...
 
-**Task template:**
-```markdown
-- [ ] Task: [Description]
-  - Acceptance: [What must be true when done]
-  - Verify: [How to confirm — test command, build, manual check]
-  - Files: [Which files will be touched]
-```
 
 **Rule**: Tasks must be small enough to complete in a single session (< 2 hours). If a task is larger, break it down.
+
+**Do Not Proceed to Implementation Without**:
+- [ ] Every spec item mapped to a task
+- [ ] Task ordering respects dependencies
+- [ ] Each task has a verification command
 
 ---
 
 ## Phase 5: Implementation
 
-**Process**:
+### Per-Task Discipline
 
-1. Read `SPEC/tasks.md` — pick the next incomplete task
-2. Read the relevant spec section — implement exactly what is specified
-3. If TDD skill is available: follow RED-GREEN-REFACTOR cycle
-4. Mark each completed task with `✓` in `tasks.md`
-5. Write a commit after each completed task
+1. **Read** the task. Only the task.
+2. **Verify preconditions** (does the file exist? is the dependency done?)
+3. **Implement** exactly what the task says
+4. **Verify** with the command in the task
+5. **Commit** after each successful task
 
-**Code rules**:
+### Code Rules
+
 - Zero tolerance for TODO comments in code — either do it or file an issue
 - No commented-out dead code — delete it
 - All new code must pass linting before commit
 - Type signatures must be explicit (no `any` without documentation)
 
-**Commit format**:
-```
+### Commit Format
+
+
 <type>(<scope>): <short description>
 
-[body — what changed and why]
-```
+[TASK-N] Short description
+
+- What changed
+- Why it was necessary
+- How it was verified
+
 
 Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`
+
+**Do Not Skip**:
+- [ ] Running the verification command for each task
+- [ ] Committing after each successful task
 
 ---
 
@@ -273,8 +303,8 @@ Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`
 
 **Definition**: A regression test is any test that verifies existing, unchanged functionality still works.
 
-```
-# Regression test checklist
+markdown
+# Regression Test Checklist
 
 ## Smoke Tests
 - [ ] Core build succeeds: `make build` / `pnpm build` / etc.
@@ -289,22 +319,36 @@ Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`
 ## Feature-Specific Regression
 - [ ] Existing users can still do X (from previous specs)
 - [ ] No performance regression on key paths
-```
+
+## Manual Verification (if no automated test exists)
+- [ ] Feature X manually tested on [platform]
+- [ ] Edge case Y manually verified
+
+
+bash
+# Run the full test suite
+pytest tests/ -v
+
+# Run integration tests
+pytest tests/integration/ -v
+
 
 **Rule**: If the regression test suite has ANY failures after your change, you cannot proceed to launch until they are fixed or explicitly waived with a documented reason.
 
 ---
 
-## Phase 7: Bug-Free Verification
+## Phase 7: Verification
+
+**File**: `SPEC/verify.md`
 
 **Before launch**, perform a final verification sweep:
 
-```markdown
+markdown
 # Launch Verification Checklist
 
 ## Correctness
 - [ ] No `console.error` or unhandled exceptions in code paths
-- [ ] All error cases have user-friendly messages (no raw stack traces)
+- [ ] All error cases have user-friendly messages
 - [ ] Input validation covers all edge cases from the spec
 - [ ] No hardcoded secrets, credentials, or API keys
 
@@ -316,17 +360,27 @@ Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`
 ## Performance
 - [ ] No obvious N+1 queries (if database is involved)
 - [ ] No synchronous operations that could block the event loop (Node.js)
+- [ ] Startup time unchanged (if applicable)
 
 ## Security
 - [ ] No SQL injection vectors
 - [ ] No XSS vectors
 - [ ] Auth tokens not logged
-- [ ] File paths sanitized
+- [ ] File paths sanitized (especially on Windows)
+
+## Compatibility
+- [ ] Works on all supported platforms (macOS, Linux, Windows)
+- [ ] No regression for existing users
 
 ## Rollback
 - [ ] Rollback plan from proposal is documented and tested
 - [ ] Migrations are reversible (or marked as one-way with justification)
-```
+
+## Pre-Launch
+- [ ] All tasks completed
+- [ ] Documentation updated
+- [ ] Code review approved
+
 
 ---
 
@@ -335,12 +389,12 @@ Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`
 **Pre-launch**:
 1. Final verification checklist complete
 2. Regression tests green
-3. Code review approved (see `requesting-code-review` skill)
+3. Code review approved
 4. Changelog updated
 5. Version bumped (if applicable)
 
 **Launch execution**:
-```bash
+bash
 # Verify everything is clean
 make test && make build && echo "Ready to deploy"
 
@@ -349,7 +403,7 @@ terraform plan -out=plan.tfplan
 
 # Deploy with rollback capability
 ./scripts/deploy.sh --rollback-on-failure
-```
+
 
 **Post-launch**:
 - Monitor error rates for 30 minutes
@@ -358,30 +412,15 @@ terraform plan -out=plan.tfplan
 
 ---
 
-## Keeping the Spec Alive
+## Gate Criteria
 
-The spec is a living document, not a one-time artifact:
+Before moving to implementation, verify:
 
-- **Update when decisions change** — If you discover the data model needs to change, update the spec first, then implement.
-- **Update when scope changes** — Features added or cut should be reflected in the spec.
-- **Commit the spec** — The spec belongs in version control alongside the code.
-- **Reference the spec in PRs** — Link back to the spec section that each PR implements.
-
----
-
-## Common Rationalizations
-
-These are the ways agents (and humans) rationalize skipping the spec process. Recognize them and push back.
-
-| Rationalization | Reality |
-|---|---|
-| "This is simple, I don't need a spec" | Simple tasks don't need *long* specs, but they still need acceptance criteria. A two-line spec is fine. |
-| "I'll write the spec after I code it" | That's documentation, not specification. The spec's value is in forcing clarity *before* code. |
-| "The spec will slow us down" | A 15-minute spec prevents hours of rework. Waterfall in 15 minutes beats debugging in 15 hours. |
-| "Requirements will change anyway" | That's why the spec is a living document. An outdated spec is still better than no spec. |
-| "The user knows what they want" | Even clear requests have implicit assumptions. The spec surfaces those assumptions. |
-| "It's just a small change" | Small changes still break things. The smaller the change, the less excuse to skip the spec. |
-| "I'll figure it out as I go" | Without a spec, "figuring it out" means making unilateral decisions that should be reviewed. |
+- [ ] Proposal clearly states the problem
+- [ ] Each spec has at least one testable acceptance criterion
+- [ ] Design identifies all files to be created/modified
+- [ ] Tasks are in dependency order
+- [ ] No spec contradicts another
 
 ---
 
@@ -393,22 +432,25 @@ These are the ways agents (and humans) rationalize skipping the spec process. Re
 4. **No rollback plan** — Every non-trivial change needs a rollback plan in the proposal.
 5. **Implementing outside the spec** — If you found something the spec missed, update the spec first.
 6. **Skipping design for "simple" changes** — Most bugs come from "simple" changes that weren't fully thought through.
-7. **Silent assumptions** — If you assumed something without writing it down, the spec will mislead implementers.
 
 ---
 
-## Red Flags
+## Common Rationalizations
 
-These are observable signs the spec process is being violated:
-
-- Starting to write code without any written requirements
-- Asking "should I just start building?" before clarifying what "done" means
-- Implementing features not mentioned in any spec or task list
-- Making architectural decisions without documenting them
-- Skipping the spec because "it's obvious what to build"
-- A spec that has no concrete, testable acceptance criteria
-- No "Not Doing" list making trade-offs explicit
-- Regression test failures ignored before launch
+| Rationalization | Reality |
+|---|---|
+| "The idea is simple enough, we don't need a spec" | Simple ideas produce complex implementations without specs — the spec forces you to think it through |
+| "I'll write the spec as I go" | This produces no spec. Specs require dedicated, uninterrupted thinking time before coding begins |
+| "The user just wants a quick prototype" | Prototypes become production. Writing a spec for a prototype costs 30 minutes and saves days of refactoring |
+| "I know what needs to be built" | Knowing and documenting are different activities. If it's not documented, it's not agreed upon |
+| "We can fill in the details during implementation" | Implementation details reveal spec gaps — but finding them mid-implementation is 10x more expensive than before coding starts |
+| "The existing codebase is the spec" | Code describes what the system does, not what it should do. Only a spec answers "should we change this?" |
+| "Specs go out of date" | Unmaintained specs become wrong. Maintained specs are living documents — update them during implementation |
+| "Writing specs slows us down" | Specs slow down bad implementations and accelerate good ones. The upfront cost is amortized across the entire project lifetime |
+| "I'll remember all the edge cases" | You won't. The spec documents them so you don't have to hold them all in memory |
+| "The code review will catch spec gaps" | Code reviews catch code quality issues. Spec gaps are found by QA, users, or production incidents — the most expensive places |
+| "We don't have time to write a spec" | You don't have time NOT to write a spec. A 2-hour spec prevents 2-week refactors |
+| "This is just a small change" | Small changes have an uncanny tendency to become large changes. Spec it before the scope expands |
 
 ---
 
@@ -416,11 +458,11 @@ These are observable signs the spec process is being violated:
 
 | Phase | File | Question Answered | Do Not Proceed If |
 |-------|------|-------------------|-------------------|
-| Proposal | `SPEC/proposal.md` | Why? What problem? | No problem statement |
-| Specs | `SPEC/specs/*.md` | What exactly? | No concrete acceptance criteria |
-| Design | `SPEC/design.md` | How? | No implementation detail |
-| Tasks | `SPEC/tasks.md` | Who does what? | Tasks > 2 hours each |
-| Implement | — | — | Spec not finalized |
+| Proposal | `SPEC/proposal.md` | Why? What problem? | No problem statement, no success criteria, no rollback plan |
+| Specs | `SPEC/specs/*.md` | What exactly? | No concrete acceptance criteria, no edge cases |
+| Design | `SPEC/design.md` | How? | No implementation detail, no security review |
+| Tasks | `SPEC/tasks.md` | In what order? | Task ordering violates dependencies |
+| Implement | — | — | Task not verified, linting fails |
 | Regression | — | Did we break existing? | Any test failure |
-| Verify | — | Is it truly done? | Any checklist item unmet |
+| Verify | `SPEC/verify.md` | Is it truly done? | Any checklist item unmet |
 | Launch | — | — | Verification incomplete |
