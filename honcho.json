@@ -1,0 +1,10 @@
+{
+  "workspace": "hermes-agent",
+  "peer_id": "r00tcc",
+  "base_url": "http://localhost:8889/v3",
+  "sync_on_session_end": true,
+  "inject_context_on_start": true,
+  "conclusions_to_viking": true,
+  "chat_timeout": 30,
+  "sync_timeout": 10
+}

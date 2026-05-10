@@ -78,6 +78,13 @@ def evolve(
         console.print(f"  Would validate constraints and create PR")
         return
 
+    # ── 1b. Configure DSPy LM early (needed for dataset generation) ─────
+    lm_kwargs = {"model": eval_model}
+    if api_base:
+        lm_kwargs["api_base"] = api_base
+    lm = dspy.LM(**lm_kwargs)
+    dspy.configure(lm=lm)
+
     # ── 2. Build or load evaluation dataset ─────────────────────────────
     console.print(f"\n[bold]Building evaluation dataset[/bold] (source: {eval_source})")
 
@@ -138,12 +145,9 @@ def evolve(
     console.print(f"  Optimizer model: {optimizer_model}")
     console.print(f"  Eval model: {eval_model}")
 
-    # Configure DSPy
-    lm_kwargs = {"model": eval_model}
-    if api_base:
-        lm_kwargs["api_base"] = api_base
-    lm = dspy.LM(**lm_kwargs)
-    dspy.configure(lm=lm)
+    # DSPy LM already configured in step 1b
+    # (Re-verify it's set for the optimizer phase)
+    lm = dspy.settings.lm
 
     # Create the baseline skill module
     baseline_module = SkillModule(skill["body"])
@@ -184,13 +188,21 @@ def evolve(
     console.print(f"\n  Optimization completed in {elapsed:.1f}s")
 
     # ── 6. Extract evolved skill text ───────────────────────────────────
-    # The optimized module's instructions contain the evolved skill text
-    evolved_body = optimized_module.skill_text
+    # MIPROv2 optimizes the predictor's signature instructions, not skill_text directly.
+    # Extract the evolved instructions from the optimized predictor.
+    try:
+        evolved_body = optimized_module.predictor.signature.instructions
+        if not evolved_body or not evolved_body.strip():
+            evolved_body = optimized_module.skill_text
+        console.print(f"  Evolved body: {len(evolved_body)} chars (from predictor.signature.instructions)")
+    except AttributeError:
+        evolved_body = optimized_module.skill_text
+        console.print(f"  Evolved body: {len(evolved_body)} chars (from skill_text fallback)")
     evolved_full = reassemble_skill(skill["frontmatter"], evolved_body)
 
     # ── 7. Validate evolved skill ───────────────────────────────────────
     console.print(f"\n[bold]Validating evolved skill[/bold]")
-    evolved_constraints = validator.validate_all(evolved_body, "skill", baseline_text=skill["body"])
+    evolved_constraints = validator.validate_all(evolved_full, "skill", baseline_text=skill["body"])
     all_pass = True
     for c in evolved_constraints:
         icon = "✓" if c.passed else "✗"

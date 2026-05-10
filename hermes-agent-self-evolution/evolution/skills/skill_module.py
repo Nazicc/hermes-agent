@@ -104,7 +104,7 @@ class SkillModule(dspy.Module):
     def __init__(self, skill_text: str):
         super().__init__()
         self.skill_text = skill_text
-        self.predictor = dspy.ChainOfThought(self.TaskWithSkill)
+        self.predictor = dspy.Predict(self.TaskWithSkill)
 
     def forward(self, task_input: str) -> dspy.Prediction:
         result = self.predictor(

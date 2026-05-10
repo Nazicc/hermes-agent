@@ -59,7 +59,7 @@ class LLMJudge:
 
     def __init__(self, config: EvolutionConfig):
         self.config = config
-        self.judge = dspy.ChainOfThought(self.JudgeSignature)
+        self.judge = dspy.Predict(self.JudgeSignature)
 
     def score(
         self,

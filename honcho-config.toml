@@ -1,0 +1,138 @@
+# Honcho Configuration - Self-hosted with MiniMax LLM backend
+
+[app]
+LOG_LEVEL = "INFO"
+SESSION_OBSERVERS_LIMIT = 10
+GET_CONTEXT_MAX_TOKENS = 8000
+MAX_FILE_SIZE = 5242880
+MAX_MESSAGE_SIZE = 25000
+EMBED_MESSAGES = true
+NAMESPACE = "honcho"
+
+[db]
+CONNECTION_URI = "postgresql+psycopg://honcho:honcho123@honcho-postgres:5432/honcho"
+SCHEMA = "public"
+POOL_PRE_PING = true
+POOL_SIZE = 5
+MAX_OVERFLOW = 10
+
+[auth]
+USE_AUTH = false
+
+[llm]
+DEFAULT_MAX_TOKENS = 4096
+MAX_TOOL_OUTPUT_CHARS = 10000
+MAX_MESSAGE_CONTENT_CHARS = 2000
+OPENAI_API_KEY = "sk-cp--MLzXyf5V50vO5wkchRazhzGF-dULvbTikU7ojyjzo2H17L5b-h2DXj-2I6xmuvMVpsnshNlGUoi83dABbVg6fczYBdBW4WYRghWdwp5lgfTCw5x8PjT51M"
+
+[embedding]
+VECTOR_DIMENSIONS = 1024
+
+[embedding.model_config]
+transport = "openai"
+model = "BAAI/bge-large-zh-v1.5"
+
+[embedding.model_config.overrides]
+base_url = "https://api.siliconflow.cn/v1"
+api_key = "sk-yofeaabmuumckiomjqbgipouhfdusorieruhmaaxroxgzxjs"
+
+[deriver]
+ENABLED = true
+WORKERS = 1
+POLLING_SLEEP_INTERVAL_SECONDS = 1.0
+STALE_SESSION_TIMEOUT_MINUTES = 5
+DEDUPLICATE = true
+FLUSH_ENABLED = true
+REPRESENTATION_BATCH_MAX_TOKENS = 128
+
+[deriver.model_config]
+transport = "openai"
+model = "glm-5.1"
+
+[deriver.model_config.overrides]
+base_url = "https://ark.cn-beijing.volces.com/api/coding/v3"
+api_key = "ce0a07d1-ef5c-4b44-ba99-df11a880d341"
+
+[dialectic]
+
+[dialectic.levels.minimal]
+MAX_TOOL_ITERATIONS = 1
+TOOL_CHOICE = "auto"
+
+[dialectic.levels.minimal.model_config]
+transport = "openai"
+model = "glm-5.1"
+
+[dialectic.levels.minimal.model_config.overrides]
+base_url = "https://ark.cn-beijing.volces.com/api/coding/v3"
+api_key = "ce0a07d1-ef5c-4b44-ba99-df11a880d341"
+
+[dialectic.levels.low]
+MAX_TOOL_ITERATIONS = 3
+TOOL_CHOICE = "auto"
+
+[dialectic.levels.low.model_config]
+transport = "openai"
+model = "glm-5.1"
+
+[dialectic.levels.low.model_config.overrides]
+base_url = "https://ark.cn-beijing.volces.com/api/coding/v3"
+api_key = "ce0a07d1-ef5c-4b44-ba99-df11a880d341"
+
+[dialectic.levels.medium]
+MAX_TOOL_ITERATIONS = 2
+
+[dialectic.levels.medium.model_config]
+transport = "openai"
+model = "glm-5.1"
+
+[dialectic.levels.medium.model_config.overrides]
+base_url = "https://ark.cn-beijing.volces.com/api/coding/v3"
+api_key = "ce0a07d1-ef5c-4b44-ba99-df11a880d341"
+
+[dialectic.levels.high]
+MAX_TOOL_ITERATIONS = 4
+
+[dialectic.levels.high.model_config]
+transport = "openai"
+model = "glm-5.1"
+
+[dialectic.levels.high.model_config.overrides]
+base_url = "https://ark.cn-beijing.volces.com/api/coding/v3"
+api_key = "ce0a07d1-ef5c-4b44-ba99-df11a880d341"
+
+[dialectic.levels.max]
+MAX_TOOL_ITERATIONS = 10
+
+[dialectic.levels.max.model_config]
+transport = "openai"
+model = "glm-5.1"
+
+[dialectic.levels.max.model_config.overrides]
+base_url = "https://ark.cn-beijing.volces.com/api/coding/v3"
+api_key = "ce0a07d1-ef5c-4b44-ba99-df11a880d341"
+
+[summary]
+ENABLED = true
+MESSAGES_PER_SHORT_SUMMARY = 20
+MESSAGES_PER_LONG_SUMMARY = 60
+
+[summary.model_config]
+transport = "openai"
+model = "glm-5.1"
+
+[summary.model_config.overrides]
+base_url = "https://ark.cn-beijing.volces.com/api/coding/v3"
+api_key = "ce0a07d1-ef5c-4b44-ba99-df11a880d341"
+
+[dream]
+ENABLED = false
+DOCUMENT_THRESHOLD = 50
+
+[peer_card]
+ENABLED = true
+
+[vector_store]
+TYPE = "pgvector"
+DIMENSIONS = 1024
+NAMESPACE = "honcho"
