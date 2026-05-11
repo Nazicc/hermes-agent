@@ -79,7 +79,7 @@ def evolve(
         return
 
     # ── 1b. Configure DSPy LM early (needed for dataset generation) ─────
-    lm_kwargs = {"model": eval_model}
+    lm_kwargs = {"model": eval_model, "drop_params": True}
     if api_base:
         lm_kwargs["api_base"] = api_base
     lm = dspy.LM(**lm_kwargs)
