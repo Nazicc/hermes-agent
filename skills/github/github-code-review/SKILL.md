@@ -78,6 +78,12 @@ curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
   https://api.github.com/repos/<owner>/<repo>/pulls/<pr-number>/reviews
 
 
+## ⚠ — Anti-Patterns
+
+- **Never fabricate review findings** — If you cannot access a diff, file, or API endpoint, state this clearly instead of inventing content
+- **Acknowledge limitations upfront** — If gh CLI is unavailable or token lacks scope, say so immediately; don't silently degrade
+- **Don't post blanket approvals** — Every APPROVE must reference specific reviewed hunks; LGTM without evidence is an anti-pattern
+
 ## E — Edge Cases
 
 - **Large diffs**: Paginate using `per_page` and `page` parameters; process in chunks
