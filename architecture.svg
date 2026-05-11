@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 780" width="960" height="780">
   <defs>
     <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#0a1628"/>
@@ -9,56 +9,178 @@
       <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
       <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
+    <linearGradient id="honchoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a0a2e"/>
+      <stop offset="100%" style="stop-color:#2d1b4e"/>
+    </linearGradient>
   </defs>
-  <rect width="800" height="600" fill="url(#bgGrad)"/>
-  <rect x="0" y="0" width="800" height="600" fill="none" stroke="#1a3a5c" stroke-width="1"/>
+
+  <!-- Background -->
+  <rect width="960" height="780" fill="url(#bgGrad)"/>
   <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
     <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#152238" stroke-width="0.5"/>
   </pattern>
-  <rect width="800" height="600" fill="url(#grid)"/>
-  <text x="400" y="40" font-family="monospace" font-size="20" fill="#4a9eff" text-anchor="middle" filter="url(#glow)">Hermes Agent Architecture</text>
-  <g id="user-layer">
-    <rect x="300" y="80" width="200" height="50" rx="8" fill="#1e3a5f" stroke="#4a9eff" stroke-width="2"/>
-    <text x="400" y="112" font-family="monospace" font-size="14" fill="#4a9eff" text-anchor="middle">User / CLI / Gateway</text>
-  </g>
-  <g id="agent-core">
-    <rect x="250" y="180" width="300" height="120" rx="8" fill="#1a2f4a" stroke="#00d4aa" stroke-width="2"/>
-    <text x="400" y="210" font-family="monospace" font-size="14" fill="#00d4aa" text-anchor="middle">AIAgent Core</text>
-    <text x="400" y="235" font-family="monospace" font-size="11" fill="#7fdbca" text-anchor="middle">• run_agent.py</text>
-    <text x="400" y="255" font-family="monospace" font-size="11" fill="#7fdbca" text-anchor="middle">• model_tools.py</text>
-    <text x="400" y="275" font-family="monospace" font-size="11" fill="#7fdbca" text-anchor="middle">• toolsets.py</text>
-  </g>
-  <g id="tools-layer">
-    <rect x="50" y="350" width="150" height="80" rx="8" fill="#1a2f4a" stroke="#ff6b9d" stroke-width="2"/>
-    <text x="125" y="380" font-family="monospace" font-size="12" fill="#ff6b9d" text-anchor="middle">File Tools</text>
-    <text x="125" y="400" font-family="monospace" font-size="10" fill="#ffb3c7" text-anchor="middle">registry.py</text>
-    <rect x="225" y="350" width="150" height="80" rx="8" fill="#1a2f4a" stroke="#ff6b9d" stroke-width="2"/>
-    <text x="300" y="380" font-family="monospace" font-size="12" fill="#ff6b9d" text-anchor="middle">Terminal Tool</text>
-    <text x="300" y="400" font-family="monospace" font-size="10" fill="#ffb3c7" text-anchor="middle">terminal_tool.py</text>
-    <rect x="425" y="350" width="150" height="80" rx="8" fill="#1a2f4a" stroke="#ff6b9d" stroke-width="2"/>
-    <text x="500" y="380" font-family="monospace" font-size="12" fill="#ff6b9d" text-anchor="middle">MCP Tool</text>
-    <text x="500" y="400" font-family="monospace" font-size="10" fill="#ffb3c7" text-anchor="middle">mcp_tool.py</text>
-    <rect x="600" y="350" width="150" height="80" rx="8" fill="#1a2f4a" stroke="#ff6b9d" stroke-width="2"/>
-    <text x="675" y="380" font-family="monospace" font-size="12" fill="#ff6b9d" text-anchor="middle">Web Tools</text>
-    <text x="675" y="400" font-family="monospace" font-size="10" fill="#ffb3c7" text-anchor="middle">web_tools.py</text>
-  </g>
-  <g id="gateway-layer">
-    <rect x="100" y="480" width="600" height="80" rx="8" fill="#1a2f4a" stroke="#ffd93d" stroke-width="2"/>
-    <text x="400" y="510" font-family="monospace" font-size="14" fill="#ffd93d" text-anchor="middle">Gateway / Platforms</text>
-    <text x="200" y="535" font-family="monospace" font-size="10" fill="#ffe066" text-anchor="middle">Telegram</text>
-    <text x="320" y="535" font-family="monospace" font-size="10" fill="#ffe066" text-anchor="middle">Discord</text>
-    <text x="440" y="535" font-family="monospace" font-size="10" fill="#ffe066" text-anchor="middle">Slack</text>
-    <text x="560" y="535" font-family="monospace" font-size="10" fill="#ffe066" text-anchor="middle">WhatsApp</text>
-  </g>
-  <g id="connections">
-    <line x1="400" y1="130" x2="400" y2="180" stroke="#4a9eff" stroke-width="2" stroke-dasharray="5,3"/>
-    <line x1="400" y1="300" x2="125" y2="350" stroke="#00d4aa" stroke-width="1.5" stroke-dasharray="5,3"/>
-    <line x1="400" y1="300" x2="300" y2="350" stroke="#00d4aa" stroke-width="1.5" stroke-dasharray="5,3"/>
-    <line x1="400" y1="300" x2="500" y2="350" stroke="#00d4aa" stroke-width="1.5" stroke-dasharray="5,3"/>
-    <line x1="400" y1="300" x2="675" y2="350" stroke="#00d4aa" stroke-width="1.5" stroke-dasharray="5,3"/>
-    <line x1="125" y1="430" x2="400" y2="480" stroke="#ffd93d" stroke-width="1.5" stroke-dasharray="5,3"/>
-    <line x1="300" y1="430" x2="400" y2="480" stroke="#ffd93d" stroke-width="1.5" stroke-dasharray="5,3"/>
-    <line x1="500" y1="430" x2="400" y2="480" stroke="#ffd93d" stroke-width="1.5" stroke-dasharray="5,3"/>
-    <line x1="675" y1="430" x2="400" y2="480" stroke="#ffd93d" stroke-width="1.5" stroke-dasharray="5,3"/>
-  </g>
+  <rect width="960" height="780" fill="url(#grid)"/>
+
+  <!-- Title -->
+  <text x="480" y="32" font-family="monospace" font-size="18" fill="#4a9eff" text-anchor="middle" filter="url(#glow)">Hermes Agent ☤ — Architecture v2.0</text>
+
+  <!-- User Layer -->
+  <rect x="340" y="50" width="280" height="40" rx="8" fill="#1a2d4a" stroke="#4a9eff" stroke-width="1.5"/>
+  <text x="480" y="75" font-family="monospace" font-size="12" fill="#7ab8ff" text-anchor="middle">👤 飞书 / CLI / API / Discord / Telegram</text>
+
+  <!-- Arrow down -->
+  <line x1="480" y1="90" x2="480" y2="110" stroke="#4a9eff" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
+  <defs><marker id="arrowBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#4a9eff"/></marker></defs>
+
+  <!-- Gateway -->
+  <rect x="320" y="110" width="320" height="45" rx="8" fill="#1a2d4a" stroke="#4a9eff" stroke-width="2"/>
+  <text x="480" y="130" font-family="monospace" font-size="13" fill="#4a9eff" text-anchor="middle" filter="url(#glow)">⚡ Hermes Gateway</text>
+  <text x="480" y="147" font-family="monospace" font-size="10" fill="#6b8db5" text-anchor="middle">run.py / cli.py / gateway/</text>
+
+  <!-- Three columns -->
+  <line x1="480" y1="155" x2="160" y2="190" stroke="#4a9eff" stroke-width="1"/>
+  <line x1="480" y1="155" x2="480" y2="190" stroke="#4a9eff" stroke-width="1"/>
+  <line x1="480" y1="155" x2="800" y2="190" stroke="#4a9eff" stroke-width="1"/>
+
+  <!-- AIAgent -->
+  <rect x="40" y="190" width="240" height="130" rx="8" fill="#0f1f35" stroke="#26a69a" stroke-width="1.5"/>
+  <text x="160" y="210" font-family="monospace" font-size="12" fill="#26a69a" text-anchor="middle" filter="url(#glow)">🤖 AIAgent</text>
+  <text x="160" y="228" font-family="monospace" font-size="9" fill="#5a9e96">run_agent.py</text>
+  <text x="160" y="244" font-family="monospace" font-size="9" fill="#6b8db5">├─ prompt_builder</text>
+  <text x="160" y="258" font-family="monospace" font-size="9" fill="#6b8db5">├─ context_compressor</text>
+  <text x="160" y="272" font-family="monospace" font-size="9" fill="#6b8db5">├─ memory_manager</text>
+  <text x="160" y="286" font-family="monospace" font-size="9" fill="#6b8db5">├─ on_memory_write (双路径)</text>
+  <text x="160" y="300" font-family="monospace" font-size="9" fill="#6b8db5">└─ smart_routing</text>
+
+  <!-- MCP Client -->
+  <rect x="310" y="190" width="340" height="130" rx="8" fill="#0f1f35" stroke="#ff9800" stroke-width="1.5"/>
+  <text x="480" y="210" font-family="monospace" font-size="12" fill="#ff9800" text-anchor="middle" filter="url(#glow)">🔌 MCP Client (12 servers)</text>
+  <text x="375" y="230" font-family="monospace" font-size="9" fill="#c4a35a">deerflow</text>
+  <text x="475" y="230" font-family="monospace" font-size="9" fill="#c4a35a">deepcode</text>
+  <text x="575" y="230" font-family="monospace" font-size="9" fill="#c4a35a">deeptutor</text>
+  <text x="375" y="246" font-family="monospace" font-size="9" fill="#c4a35a">hindsight</text>
+  <text x="475" y="246" font-family="monospace" font-size="9" fill="#c4a35a">openviking</text>
+  <text x="575" y="246" font-family="monospace" font-size="9" fill="#c4a35a">gbrain</text>
+  <text x="375" y="262" font-family="monospace" font-size="9" fill="#c4a35a">browser-h</text>
+  <text x="475" y="262" font-family="monospace" font-size="9" fill="#c4a35a">sirchmunk</text>
+  <text x="575" y="262" font-family="monospace" font-size="9" fill="#c4a35a">simplemem</text>
+  <text x="375" y="278" font-family="monospace" font-size="9" fill="#c4a35a">sm_evo</text>
+  <text x="475" y="278" font-family="monospace" font-size="9" fill="#c4a35a">skills-qual</text>
+  <text x="575" y="278" font-family="monospace" font-size="9" fill="#c4a35a">beads</text>
+  <text x="480" y="300" font-family="monospace" font-size="8" fill="#555">202 skills · 50+ tools</text>
+
+  <!-- Tool Registry -->
+  <rect x="680" y="190" width="240" height="130" rx="8" fill="#0f1f35" stroke="#9c27b0" stroke-width="1.5"/>
+  <text x="800" y="210" font-family="monospace" font-size="12" fill="#9c27b0" text-anchor="middle" filter="url(#glow)">🔧 Tool Registry</text>
+  <text x="800" y="228" font-family="monospace" font-size="9" fill="#8a6b9e">terminal / file</text>
+  <text x="800" y="244" font-family="monospace" font-size="9" fill="#8a6b9e">web / browse</text>
+  <text x="800" y="260" font-family="monospace" font-size="9" fill="#8a6b9e">vision / ocr</text>
+  <text x="800" y="276" font-family="monospace" font-size="9" fill="#8a6b9e">memory_recall (统一)</text>
+  <text x="800" y="292" font-family="monospace" font-size="9" fill="#8a6b9e">delegation / cron</text>
+
+  <!-- LLM Layer -->
+  <rect x="280" y="350" width="400" height="55" rx="8" fill="#1a2d4a" stroke="#4a9eff" stroke-width="1.5"/>
+  <text x="480" y="370" font-family="monospace" font-size="12" fill="#4a9eff" text-anchor="middle">🔀 SkillClaw (:30000)</text>
+  <text x="480" y="393" font-family="monospace" font-size="10" fill="#6b8db5" text-anchor="middle">GLM-5.1 (Volcengine Ark) · MiniMax-M2.7 · GPT-5.3-Codex</text>
+
+  <!-- Arrow from gateway to LLM -->
+  <line x1="480" y1="320" x2="480" y2="350" stroke="#4a9eff" stroke-width="1.5" marker-end="url(#arrowBlue)"/>
+
+  <!-- ==================== MEMORY STACK ==================== -->
+  <rect x="30" y="430" width="900" height="340" rx="12" fill="#0a1220" stroke="#2a4a6a" stroke-width="1.5"/>
+  <text x="480" y="455" font-family="monospace" font-size="14" fill="#7ab8ff" text-anchor="middle" filter="url(#glow)">🧠 五层记忆架构 (L0→L4) — SINK Design</text>
+
+  <!-- L0 -->
+  <rect x="50" y="470" width="155" height="55" rx="6" fill="#0d1a2d" stroke="#4caf50" stroke-width="1.5"/>
+  <text x="127" y="490" font-family="monospace" font-size="11" fill="#4caf50" text-anchor="middle">L0 Memory Tool</text>
+  <text x="127" y="508" font-family="monospace" font-size="8" fill="#6b8db5" text-anchor="middle">memory{} · 即时写入</text>
+
+  <!-- L1 -->
+  <rect x="220" y="470" width="155" height="55" rx="6" fill="#0d1a2d" stroke="#2196f3" stroke-width="1.5"/>
+  <text x="297" y="490" font-family="monospace" font-size="11" fill="#2196f3" text-anchor="middle">L1 SimpleMem</text>
+  <text x="297" y="508" font-family="monospace" font-size="8" fill="#6b8db5" text-anchor="middle">LanceDB · content/write</text>
+
+  <!-- L2 -->
+  <rect x="390" y="470" width="210" height="55" rx="6" fill="#0d1a2d" stroke="#ff5722" stroke-width="2"/>
+  <text x="495" y="488" font-family="monospace" font-size="11" fill="#ff5722" text-anchor="middle" filter="url(#glow)">L2 OpenViking + Hindsight</text>
+  <text x="495" y="508" font-family="monospace" font-size="8" fill="#6b8db5" text-anchor="middle">RAG · pgvector · memory_recall 统一</text>
+
+  <!-- L3 -->
+  <rect x="615" y="470" width="155" height="55" rx="6" fill="#0d1a2d" stroke="#ff9800" stroke-width="1.5"/>
+  <text x="692" y="490" font-family="monospace" font-size="11" fill="#ff9800" text-anchor="middle">L3 Evolution</text>
+  <text x="692" y="508" font-family="monospace" font-size="8" fill="#6b8db5" text-anchor="middle">Gene · WorkingMemory</text>
+
+  <!-- L4 Honcho -->
+  <rect x="785" y="470" width="130" height="55" rx="6" fill="url(#honchoGrad)" stroke="#e040fb" stroke-width="2"/>
+  <text x="850" y="490" font-family="monospace" font-size="11" fill="#e040fb" text-anchor="middle" filter="url(#glow)">L4 Honcho</text>
+  <text x="850" y="508" font-family="monospace" font-size="8" fill="#b06cc4" text-anchor="middle">SINK · Deriver</text>
+
+  <!-- Write path arrows -->
+  <text x="480" y="550" font-family="monospace" font-size="10" fill="#4a9eff" text-anchor="middle">── 写入路径 (Write Path) ──</text>
+
+  <line x1="127" y1="525" x2="127" y2="565" stroke="#4caf50" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="127" y="578" font-family="monospace" font-size="8" fill="#4caf50" text-anchor="middle">即时</text>
+
+  <line x1="297" y1="525" x2="297" y2="565" stroke="#2196f3" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="297" y="578" font-family="monospace" font-size="8" fill="#2196f3" text-anchor="middle">content/write即时</text>
+
+  <line x1="450" y1="525" x2="450" y2="565" stroke="#ff5722" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="450" y="578" font-family="monospace" font-size="8" fill="#ff5722" text-anchor="middle">session-buffer批量</text>
+
+  <line x1="540" y1="525" x2="540" y2="565" stroke="#ff5722" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="540" y="578" font-family="monospace" font-size="8" fill="#ff5722" text-anchor="middle">on_session_end→Hindsight</text>
+
+  <line x1="692" y1="525" x2="692" y2="565" stroke="#ff9800" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="692" y="578" font-family="monospace" font-size="8" fill="#ff9800" text-anchor="middle">evolve_server独占</text>
+
+  <line x1="850" y1="525" x2="850" y2="565" stroke="#e040fb" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="850" y="578" font-family="monospace" font-size="8" fill="#e040fb" text-anchor="middle">bridge cron/4h</text>
+
+  <!-- Read path -->
+  <text x="480" y="610" font-family="monospace" font-size="10" fill="#ff5722" text-anchor="middle">── 读取路径 (Read Path) ── memory_recall 统一入口 ──</text>
+
+  <rect x="100" y="625" width="760" height="40" rx="6" fill="#1a0a0a" stroke="#ff5722" stroke-width="1"/>
+  <text x="480" y="648" font-family="monospace" font-size="9" fill="#ff8a65" text-anchor="middle">memory_recall → L2 OpenViking (优先) → L2 Hindsight (图推理) → L3 Evolution (降级) → 去重合并 → 低结果时 Hindsight reflect</text>
+
+  <!-- L4 feedback arrow -->
+  <path d="M 850 580 Q 900 600 850 625" fill="none" stroke="#e040fb" stroke-width="1" stroke-dasharray="4,2"/>
+  <text x="910" y="605" font-family="monospace" font-size="7" fill="#e040fb">结论→viking_remember→回流L2</text>
+
+  <!-- Honcho SINK box -->
+  <rect x="720" y="680" width="195" height="75" rx="6" fill="url(#honchoGrad)" stroke="#e040fb" stroke-width="1"/>
+  <text x="817" y="698" font-family="monospace" font-size="9" fill="#e040fb" text-anchor="middle">Honcho SINK</text>
+  <text x="817" y="714" font-family="monospace" font-size="8" fill="#b06cc4" text-anchor="middle">honcho-api :8889</text>
+  <text x="817" y="728" font-family="monospace" font-size="8" fill="#b06cc4" text-anchor="middle">honcho-deriver (GLM-5.1)</text>
+  <text x="817" y="742" font-family="monospace" font-size="8" fill="#b06cc4" text-anchor="middle">honcho-postgres :5433</text>
+
+  <!-- Cron -->
+  <rect x="50" y="680" width="300" height="75" rx="6" fill="#0d1a2d" stroke="#607d8b" stroke-width="1"/>
+  <text x="200" y="700" font-family="monospace" font-size="10" fill="#90a4ae" text-anchor="middle">⏰ Cron Jobs (5 个活跃)</text>
+  <text x="200" y="716" font-family="monospace" font-size="8" fill="#607d8b">04:00 每日维护 │ /4h Evolver分析</text>
+  <text x="200" y="730" font-family="monospace" font-size="8" fill="#607d8b">/6h 会话压缩 │ /4h Honcho L4同步</text>
+  <text x="200" y="744" font-family="monospace" font-size="8" fill="#607d8b">周一03:00 周升级</text>
+
+  <!-- Data sizes -->
+  <rect x="380" y="680" width="310" height="75" rx="6" fill="#0d1a2d" stroke="#607d8b" stroke-width="1"/>
+  <text x="535" y="700" font-family="monospace" font-size="10" fill="#90a4ae" text-anchor="middle">💾 数据存储</text>
+  <text x="535" y="716" font-family="monospace" font-size="8" fill="#607d8b">state.db 9.5MB │ sirchmunk 477MB</text>
+  <text x="535" y="730" font-family="monospace" font-size="8" fill="#607d8b">openviking 4.4MB │ simplemem 8KB</text>
+  <text x="535" y="744" font-family="monospace" font-size="8" fill="#607d8b">evolution 556KB │ skills 202个</text>
+
+  <!-- Connection: Memory stack to AIAgent -->
+  <line x1="160" y1="470" x2="160" y2="320" stroke="#26a69a" stroke-width="1" stroke-dasharray="4,2"/>
+  <text x="90" y="395" font-family="monospace" font-size="8" fill="#26a69a">on_memory_write</text>
+
+  <!-- Connection: Memory stack to MCP -->
+  <line x1="480" y1="470" x2="480" y2="320" stroke="#ff5722" stroke-width="1" stroke-dasharray="4,2"/>
+  <text x="510" y="395" font-family="monospace" font-size="8" fill="#ff5722">memory_recall</text>
+
+  <!-- Persistence badge -->
+  <rect x="30" y="50" width="170" height="25" rx="4" fill="#1a3a2a" stroke="#4caf50" stroke-width="1"/>
+  <text x="115" y="67" font-family="monospace" font-size="9" fill="#4caf50" text-anchor="middle">✅ 全系统重启安全</text>
+
+  <!-- Version badge -->
+  <rect x="760" y="50" width="170" height="25" rx="4" fill="#1a2d4a" stroke="#4a9eff" stroke-width="1"/>
+  <text x="845" y="67" font-family="monospace" font-size="9" fill="#4a9eff" text-anchor="middle">v0.10.0 + 6 enhancements</text>
 </svg>

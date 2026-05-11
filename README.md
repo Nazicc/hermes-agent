@@ -12,7 +12,7 @@
 
 ## 此分支有何不同
 
-本 fork 在 Hermes Agent（NousResearch）基础上叠加了五大核心增强，同时保持与上游完全兼容。所有改动均在本地 `~/.hermes/` 运行时目录生效。
+本 fork 在 Hermes Agent（NousResearch v0.10.0）基础上叠加了六大核心增强，同时保持与上游兼容。所有改动均在本地 `~/.hermes/` 运行时目录生效。
 
 ---
 
@@ -20,7 +20,7 @@
 
 | 机制 | 说明 |
 |------|------|
-| **pre-commit hook** | 提交前扫描常见 secret 模式，匹配则阻断 |
+| **pre-commit hook** | 提交前扫描常见 secret 模式（`sk-`、`ghp_`、`AKIA`），匹配则阻断 |
 | **post-commit hook** | 每次 `git commit` 自动 `make deploy` 同步 prerun scripts |
 | **敏感信息安全** | 所有 API key 只通过环境变量引用，从不硬编码写入配置文件 |
 | **.gitignore** | `.env`、`auth.json`、`state.db`、各类 `.pem`/`.ppk` 私钥、venv/ 均已排除 |
@@ -29,7 +29,7 @@
 
 ### 🔀 SkillClaw Proxy Layer
 
-**SkillClaw** 是本地 LLM 流量代理层，运行于 `localhost:30000`，负责：
+**SkillClaw** 是本地 LLM 流量代理层，运行于 `localhost:30000`：
 
 - **多租户路由**：Token Plan Key + round_robin 负载策略
 - **协议兼容**：OpenAI-compatible API，零成本切换模型
@@ -54,18 +54,24 @@ hermes-agent → SkillClaw (:30000) → MiniMax API
 
 ---
 
-### 🧠 Privacy-First Persistent Memory Stack
+### 🧠 五层记忆架构 (L0→L4)
 
-六套互补的记忆系统，均本地运行：
+基于 **SINK 设计模式** 的分层记忆系统，所有数据本地运行：
 
-| System | Engine | Best For | Privacy |
-|--------|--------|----------|---------|
-| **SimpleMem** | LanceDB + embedding | 跨会话长期上下文召回 | 遗忘曲线 + 权重衰减 |
-| **SimpleMem Evolution** | Gene + WorkingMemory | 触发-动作规则、自动进化 | 记忆强化 + 衰减 |
-| **Hindsight** | Docker (pgvector) + 多策略召回 | 经验记忆、洞察反思、情景记忆 | bank 隔离，纯本地 |
-| **SirchMunk** | DuckDB + ripgrep | 项目历史全文检索 | 纯本地，无云端 |
-| **OpenViking** | Docker + RAG pipeline | 结构化知识库问答 | 本地知识库，直连工具 |
-| **gbrain** | PGLite + BAAI/bge-large-zh-v1.5（SiliconFlow） | 知识图谱、RAG 语义搜索 | 纯本地，向量检索 |
+```
+Layer   System             Engine                         写入路径                    读取路径
+──────  ─────────────────  ─────────────────────────────  ──────────────────────      ───────────────────
+L0      Memory Tool        内置 memory{} (2.2KB)          即时写入                    注入 prompt
+L1      SimpleMem          LanceDB + embedding            content/write 即时          semantic_search
+L2      OpenViking+Hindsight Docker+pgvector+RAG         session-buffer 批量         memory_recall 统一检索
+L3      SimpleMem Evolution Gene + WorkingMemory          evolve_server 写入          evolution API
+L4      Honcho SINK        Docker (API+Deriver+PG)        honcho_bridge.py 同步       honcho.chat() 按需
+```
+
+**数据流原则**：
+- **写入**：L0/L1 即时写入；L2 通过 `on_memory_write` 双路径（content/write 即时 + session-buffer 批量）；L3 由 evolve_server 独占写入；L4 由 cron 每 4h 同步
+- **读取**：统一走 L2（`memory_recall` → OpenViking → Hindsight → L3 降级检索），单读路径
+- **Honcho 定位**：SINK（下游处理器），仅两个独特价值 — (1) Deriver 自动推导 (2) Dialectic 辩证推理；结论通过 `viking_remember` 回流 L2
 
 ---
 
@@ -87,6 +93,7 @@ progress.md    — 带时间戳的会话日志
 - **技能自动进化** — 复杂任务触发技能升级，带验证工作流
 - **跨会话记忆** — FTS5 会话搜索 + LLM 摘要，跨会话召回决策
 - **GEPA 优化** — DSPy + GEPA 算法驱动技能参数自动调优
+- **drop_params 兼容** — 所有 DSPy LM 调用已添加 `drop_params=True`，解决 GLM-5.1/Ark 不支持 `json_object` 的问题
 
 ---
 
@@ -105,9 +112,9 @@ progress.md    — 带时间戳的会话日志
 
 ---
 
-### 🏗️ 189 Skills 技能体系
+### 🏗️ 202 Skills 技能体系
 
-**189 个技能** 覆盖软件开发、研究、MLOps、生产力、安全等场景：
+**202 个技能** 覆盖软件开发、研究、MLOps、生产力、安全等场景：
 
 | 类别 | 代表技能 |
 |------|---------|
@@ -117,6 +124,7 @@ progress.md    — 带时间戳的会话日志
 | **图表生成** | `fireworks-tech-graph`（SVG+PNG 技术图，7 种风格） |
 | **安全/CTF** | `oss-forensics` · `git-history-security-response` · `ctf-master` · `ctf-pwn` · `ctf-crypto-comprehensive` |
 | **RAG/知识** | `simplemem-mcp` · `simplemem-local-embedding` · `amp-typed-memory` · `qdrant` · `pinecone` · `chroma` |
+| **记忆桥接** | `honcho-bridge`（SINK 模式） · `hermes-agent-architecture` · `multi-mcp-architecture` |
 
 ---
 
@@ -125,52 +133,113 @@ progress.md    — 带时间戳的会话日志
 ![Architecture Diagram](architecture.svg)
 
 ```
-                         用户（飞书 / CLI / API / Discord / ...）
-                                       │
-                        ┌──────────────▼──────────────┐
-                        │      Hermes Gateway          │
-                        │      run.py / cli.py         │
-                        └──────────────┬──────────────┘
-                                       │
-              ┌────────────────────────┼────────────────────────┐
-              │                        │                        │
-┌─────────────▼──────────┐ ┌──────────▼──────────┐ ┌───────────▼───────────┐
-│   AIAgent               │ │  MCP Client         │ │  Tool Registry        │
-│   run_agent.py         │ │  (10 servers)       │ │  50+ 工具实现         │
-│   ├─ prompt_builder    │ │  ├─ deerflow (:1933)│ │  ├─ terminal/file     │
-│   ├─ context_compressor│ │  ├─ deepcode  (:8000)│ │  ├─ web/browse        │
-│   ├─ memory_manager    │ │  ├─ deeptutor (:8001)│ │  ├─ vision/ocr       │
-│   ├─ skill_commands    │ │  ├─ hindsight         │ │  ├─ delegation       │
-│   └─ smart_routing     │ │  ├─ openviking (:1934)│ │  └─ ...             │
-└─────────────────────────┘ └─────────────────────┘ └──────────────────────┘
-                                       │
-                         ┌─────────────┴──────────────┐
-                         │    SkillClaw (:30000)        │
-                         │    本地 LLM 代理 + 负载均衡   │
-                         └─────────────┬──────────────┘
-                         ┌─────────────▼──────────────┐
-                         │   MiniMax API              │
-                         └───────────────────────────┘
+                          用户（飞书 / CLI / API / Discord / Telegram / ...）
+                                        │
+                         ┌──────────────▼──────────────┐
+                         │      Hermes Gateway          │
+                         │      run.py / cli.py         │
+                         └──────────────┬──────────────┘
+                                        │
+             ┌──────────────────────────┼──────────────────────────┐
+             │                          │                          │
+┌────────────▼─────────────┐ ┌─────────▼──────────┐ ┌────────────▼──────────┐
+│   AIAgent                │ │  MCP Client         │ │  Tool Registry        │
+│   run_agent.py           │ │  (12 servers)       │ │  50+ 工具实现         │
+│   ├─ prompt_builder      │ │  ├─ deerflow  (:1933)│ │  ├─ terminal/file     │
+│   ├─ context_compressor  │ │  ├─ deepcode  (:8000)│ │  ├─ web/browse        │
+│   ├─ memory_manager      │ │  ├─ deeptutor (:8001)│ │  ├─ vision/ocr        │
+│   ├─ skill_commands      │ │  ├─ hindsight(:18888)│ │  ├─ delegation        │
+│   ├─ smart_routing       │ │  ├─ openviking(:1934)│ │  ├─ memory_recall     │
+│   └─ on_memory_write     │ │  ├─ gbrain           │ │  └─ ...               │
+│      (L1即时+L2双路径)    │ │  ├─ browser-harness  │ └───────────────────────┘
+└──────────────────────────┘ │  ├─ sirchmunk        │
+                             │  ├─ simplemem        │
+                             │  ├─ simplemem_evo    │
+                             │  ├─ skills-quality   │
+                             │  └─ beads            │
+                             └─────────────────────┘
+                                        │
+                         ┌──────────────┴──────────────┐
+                         │    SkillClaw (:30000)         │
+                         │    本地 LLM 代理 + 负载均衡    │
+                         └──────────────┬──────────────┘
+                         ┌──────────────▼──────────────┐
+                         │   GLM-5.1 / MiniMax-M2.7    │
+                         │   (Volcengine Ark / MiniMax) │
+                         └─────────────────────────────┘
+```
 
-┌── MCP Servers ──────────────────────────────────────────────────────────┐
-│  deerflow  → DeerFlow repo   │  deepcode → DeepCode :8000             │
-│  deeptutor → DeepTutor :8001 │  hindsight  → Docker :18888 (pgvector) │
-│  openviking→ Docker  :1934   │  gbrain     → Docker (PGLite+BAAI)     │
-│  browser-harness → CDP :9222│  sirchmunk  → DuckDB+ripgrep           │
-│  simplemem  → LanceDB+embed  │  simplemem_evo → Gene+WorkingMemory    │
-│  skills-quality → 技能评分   │                                      │
-└────────────────────────────────────────────────────────────────────────┘
+---
 
-┌── Memory Stack ─────────────────────────────────────────────────────────┐
-│  SimpleMem · SimpleMem Evolution · Hindsight · SirchMunk ·             │
-│  OpenViking · gbrain                                                    │
-└────────────────────────────────────────────────────────────────────────┘
+## 记忆数据流转图
 
-┌── Cron Jobs ────────────────────────────────────────────────────────────┐
-│  04:00 每日系统维护  │ 08:30 安全资讯日报 │ */5min SkillClaw守护        │
-│  240min 上下文健康  │ 0 */4h Evolver分析  │ 0 9 */3 Skills更新           │
-│  0 9 * * 1 周升级   │ 0 23 * * * README推送                            │
-└────────────────────────────────────────────────────────────────────────┘
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          写入路径 (Write Path)                               │
+│                                                                             │
+│  用户消息/Agent输出                                                          │
+│       │                                                                     │
+│       ├──→ memory{} ────────────────────────→ L0 (即时, 2.2KB)             │
+│       │                                                                     │
+│       ├──→ content/write ──────────────────→ L1 SimpleMem (即时)           │
+│       │                                                                     │
+│       ├──→ on_memory_write ─┬─ content/write → L1 SimpleMem (即时)        │
+│       │                     └─ session buffer → L2 OpenViking (批量)       │
+│       │                                        + Hindsight (on_session_end) │
+│       │                                                                     │
+│       ├──→ evolve_server ─────────────────→ L3 Evolution DB (独立)         │
+│       │                                                                     │
+│       └──→ honcho_bridge.py (cron /4h) ──→ L4 Honcho (SINK同步)           │
+│              ├─ workspace/peer 同步                                        │
+│              └─ 结论 → viking_remember → 回流 L2                           │
+│                                                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                          读取路径 (Read Path)                                │
+│                                                                             │
+│  memory_recall (统一检索入口)                                                │
+│       │                                                                     │
+│       ├──→ L2 OpenViking (viking_search/read/browse)  ← 优先级最高          │
+│       │                                                                     │
+│       ├──→ L2 Hindsight (recall/reflect)              ← 图推理补充          │
+│       │                                                                     │
+│       ├──→ L3 Evolution (gene_list/working_memory)    ← 降级检索           │
+│       │                                                                     │
+│       ├──→ 去重合并 → 返回结果                                             │
+│       │                                                                     │
+│       └──→ 低结果时触发 Hindsight reflect → 深度推理补充                    │
+│                                                                             │
+│  按需读取 (非统一路径)                                                       │
+│       │                                                                     │
+│       ├──→ L0 memory{} (自动注入 prompt)                                    │
+│       ├──→ L1 SimpleMem (search_memories/session_search)                   │
+│       └──→ L4 Honcho (honcho.chat() 一次性辩证, 不持久化)                   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Honcho SINK 架构
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    Honcho L4 — SINK Mode                         │
+│                                                                  │
+│  ┌─────────────┐    ┌─────────────┐    ┌──────────────────┐     │
+│  │ honcho-api  │    │honcho-deriver│    │ honcho-postgres  │     │
+│  │  :8889      │←──→│  (GLM-5.1)  │←──→│  :5433 (pgvector)│     │
+│  │ patched-v5  │    │ drop_params  │    │ honcho-pgdata    │     │
+│  └──────┬──────┘    └──────────────┘    └──────────────────┘     │
+│         │                                                        │
+│  honcho_bridge.py (163 行)                                       │
+│  ├─ sync_sessions()  — 增量同步会话 → Honcho workspace          │
+│  ├─ sync_conclusions() — Deriver结论 → viking_remember → L2    │
+│  └─ chat() — 一次性辩证对话 (不持久化)                            │
+│                                                                  │
+│  Cron: honcho-l4-sync / 每4h                                     │
+│  Restart: unless-stopped (所有3个容器)                            │
+│  Patch: 5个 (drop_params, f-string, health, auth, CORS)         │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -179,12 +248,16 @@ progress.md    — 带时间戳的会话日志
 
 ```
 ~/.hermes/
-├── config.yaml               # 主配置（API provider、toolsets、platforms、10个MCP server）
+├── config.yaml               # 主配置（API provider、toolsets、platforms、12个MCP server）
 ├── .env                      # 所有敏感密钥（.gitignore 排除，不上传）
 ├── hermes-agent/             # 主代码仓库（git 管理）
 │   ├── run.py               # Gateway 入口
 │   ├── cli.py               # CLI 入口（hermes 命令）
-│   ├── run_agent.py         # AIAgent 核心（621K）
+│   ├── run_agent.py         # AIAgent 核心
+│   ├── honcho_bridge.py     # Honcho L4 SINK 桥接 (163行)
+│   ├── honcho.json          # Honcho workspace/peer 配置
+│   ├── honcho-config.toml   # Honcho LLM 配置 (GLM-5.1/Volcengine)
+│   ├── honcho-patch.py      # Docker 镜像 5 补丁
 │   ├── agent/               # prompt builder、context compressor、memory manager...
 │   ├── tools/               # 50+ 工具实现
 │   ├── gateway/             # 消息平台网关（Feishu/Discord/Telegram/...）
@@ -197,12 +270,14 @@ progress.md    — 带时间戳的会话日志
 │   ├── hermes-agent-self-evolution/  # Self-evolution 引擎
 │   ├── cron/                # Cron 预检脚本 + 测试
 │   └── tests/               # pytest 测试套件
-├── skills/                   # 189 个技能（41 个分类）
+├── skills/                   # 202 个技能（91 个分类）
 │   ├── ctf/                 # CTF 综合技能
 │   ├── diagrams/            # fireworks-tech-graph（SVG+PNG 生成）
 │   ├── mlops/               # 训练/推理工具
 │   ├── security/            # 安全研究
 │   ├── software-development/# 开发流程
+│   ├── memory/              # 记忆系统桥接
+│   ├── ai-frameworks/       # Agent 框架集成
 │   └── ...
 ├── SkillClaw/               # 本地 LLM 代理层
 ├── deer-flow-repo/          # DeerFlow 完整仓库
@@ -217,13 +292,11 @@ progress.md    — 带时间戳的会话日志
 ├── memories/                  # 记忆系统数据
 ├── simplemem-data/           # SimpleMem LanceDB 数据
 ├── simplemem_evolution/       # Evolution/Gene/WorkingMemory
-├── sirchmunk-data/           # SirchMunk DuckDB 数据
-├── gbrain-data/              # gbrain PGLite 数据库（.gitignore 排除）
+├── sirchmunk-data/           # SirchMunk DuckDB 数据 (477MB)
 ├── openviking-data/          # OpenViking RAG 数据
-├── sessions/                 # SQLite 会话历史
-├── state.db                  # Hermes 主状态库（.gitignore 排除）
+├── state.db                  # Hermes 主状态库 (9.5MB)
 ├── cron/
-│   ├── jobs.json            # 定时任务配置
+│   ├── jobs.json            # 定时任务配置 (5 个活跃任务)
 │   └── output/              # 任务输出
 ├── launchd/                  # launchd plist 服务
 │   ├── com.hermes.skillclaw-proxy.plist
@@ -255,14 +328,27 @@ progress.md    — 带时间戳的会话日志
 
 | Job | 触发 | 功能 | 投递 |
 |-----|------|------|------|
-| **每日系统维护** | 04:00 | RSS 健康检查（5源）、agent 版本、代码兼容性、skills 审计 | origin |
-| **安全资讯日报** | 08:30 | 抓取 5 个 RSS 源 → 每日安全摘要 | origin |
-| **SkillClaw 路由守护** | */5min | launchd 进程守护，自动故障转移 | local |
-| **上下文健康报告** | 240min | 会话摘要、记忆系统状态 | local |
-| **Hermes-Evolver Bridge** | 0 */4h | session logs 同步、进化分析 | local |
-| **Skills 更新与兼容性评估** | 0 9 */3 * | skills 目录扫描、兼容性测试 | origin |
-| **hermes-weekly-upgrade** | 0 9 * * 1 | skills/plugins/MCP 升级验证 | origin |
-| **daily-readme-push** | 0 23 * * | changelog → GitHub | origin |
+| **hermes-daily-maintenance** | 04:00 | MCP 服务状态、过期 session 清理、git commit、磁盘空间 | 飞书 |
+| **evolver-bridge** | 每4h | Session logs 同步、Evolver 进化分析、pending review 报告 | 飞书 |
+| **weekly-upgrade** | 周一 03:00 | Skills/plugins/MCP 升级验证 | 飞书 |
+| **session-bloat-cleanup** | 每6h | 80+ 消息会话压缩、state.db VACUUM | origin |
+| **honcho-l4-sync** | 每4h | Honcho workspace 增量同步、Deriver 结论回流 L2 | origin |
+
+---
+
+## Docker 服务
+
+| 容器 | 端口 | 用途 | 重启策略 |
+|------|------|------|---------|
+| **honcho-api** | :8889 | Honcho API (patched-v5) | unless-stopped |
+| **honcho-deriver** | 8889/internal | GLM-5.1 辩证推导 | unless-stopped |
+| **honcho-postgres** | :5433 | pgvector 存储 | unless-stopped |
+| **hindsight** | :18888/:19999 | 经验记忆 + 图推理 | Docker compose |
+| **hindsight-db** | 5432/internal | Hindsight PostgreSQL | Docker compose |
+| **deer-flow-nginx** | :2026 | DeerFlow 研究网关 | Docker compose |
+| **deer-flow-gateway** | 2024/internal | DeerFlow 后端 | Docker compose |
+| **coze-web** | :8888 | Coze Studio | Docker compose |
+| **coze-server** | 8888/internal | Coze 后端 | Docker compose |
 
 ---
 
@@ -278,40 +364,64 @@ progress.md    — 带时间戳的会话日志
 
 ---
 
+## 持久化 & 重启安全
+
+| 组件 | 持久化方式 | 重启后自动恢复 |
+|------|-----------|--------------|
+| Hermes Agent | v0.10.0 pip install -e | ✅ |
+| Honcho 3 容器 | Docker volumes + unless-stopped | ✅ |
+| Hindsight | Docker volumes + compose | ✅ |
+| DeerFlow | Docker compose | ✅ |
+| SkillClaw | launchd plist | ✅ |
+| DeepCode/DeepTutor | launchd plist | ✅ |
+| OpenViking | launchd plist + data dir | ✅ |
+| state.db | 磁盘 (9.5MB) | ✅ |
+| SimpleMem | LanceDB (磁盘) | ✅ |
+| Evolution | evolution.db (磁盘) | ✅ |
+| Cron jobs | jobs.json (磁盘) | ✅ |
+
+---
+
 ## Changelog
 
+#### 2026-05-11
+- README 全面重写 — 五层记忆架构 (L0→L4)、SINK 数据流转图、202 skills、12 MCP servers、5 cron jobs
+- 架构图更新 — 增加 Honcho/beads MCP、memory_recall 统一检索、on_memory_write 双路径
+
+#### 2026-05-09
+- `8aa8c2d` fix: add `drop_params=True` to all dspy.LM calls — GLM-5.1/Ark 不支持 `json_object` response_format
+- `3daaf24` feat: Honcho L4 SINK bridge — GLM-5.1 辩证引擎，163 行桥接
+- `25b8c31` fix: session bloat cleanup — 80+ 消息压缩、VACUUM 修复
+
+#### 2026-05-08
+- `dac448a` feat(memory): memory_recall 统一分层检索 (P4) — L2→Hindsight→L3 降级 + 去重
+- `a36a5e9` feat(memory): Hindsight 整合为 L2 图推理层 — on_session_end 同步
+- `0565e25` feat(memory): on_memory_write 双路径 — content/write 即时 + session-buffer 批量
+- `9e3df2ee` feat(skill): add Anti-Patterns section to github-code-review — GEPA evolved output
+
+#### 2026-05-06
+- `7c722121` feat(credential_pool): export active key for SkillClaw hot-reload
+- Honcho Docker 容器重启策略修复 — `no` → `unless-stopped`
+- 全系统持久化审计 — 所有服务重启安全
+
 #### 2026-05-05
-- `a1b2c3d4` docs: 重写 README — 架构图更新、189 skills、10 MCP servers、8 cron jobs
-- `b3c4d5e6` fix(security): 移除 FreeBuf RSS（WAF 阻断）、同步更新 rss_health_checker.py 和 security_news.py
-- `c4d5e6f7` feat(diagrams): 安装 fireworks-tech-graph — SVG+PNG 技术图生成，7 种风格
+- `a1b2c3d4` docs: 重写 README — 架构图更新、189 skills、10 MCP servers
+- `b3c4d5e6` fix(security): 移除 FreeBuf RSS（WAF 阻断）
+- `c4d5e6f7` feat(diagrams): 安装 fireworks-tech-graph — SVG+PNG 技术图
 
 #### 2026-05-04
 - `d792c4a6` feat(ctf): add fused CTF skills — ctf-master/pwn/crypto-comprehensive/skills-toolkit
-- `b48359d6` chore: update CTF memory — 4-source fusion committed
 
 #### 2026-05-02
-- `49c704fd` feat(brain): add gbrain as 6th memory system — PGLite + SiliconFlow BAAI/bge-large-zh-v1.5
+- `49c704fd` feat(brain): add gbrain as 6th memory system — PGLite + BAAI/bge-large-zh-v1.5
 
 #### 2026-05-01
-- `a847070c` chore: daily maintenance 2026-05-01
-- `8760f0d9` feat(skills): add security skills — web-hacking-payloads, prompt-injection, vulnerability-intelligence
+- `a847070c` chore: daily maintenance
+- `8760f0d9` feat(skills): add security skills — web-hacking-payloads, prompt-injection
 
 #### 2026-04-30
 - `222684aa` docs: add Hindsight to memory stack table
-- `82dd9c5c` feat(evolver): add `--api-base` option — supports custom LLM API base URL for DSPy LM
-
-#### 2026-04-29
-- `3905e8b1` fix: normalize_usage dict-key fallback and MiniMax field aliases
-- `549ea0c9` docs: update README — reflect current architecture (67 skills, 9 launchd services, mcp-servers/)
-
-#### 2026-04-28
-- `375e66a3` docs: add DeerFlow MCP integration section to README
-
-#### 2026-04-25
-- `e7fdd234` docs: rewrite README — fork identity, security hooks, cron health checker, RIA-TV++
-
-#### 2026-05-06
-- feat(credential_pool): export active key to shared file for SkillClaw hot-reload (7c722121)
+- `82dd9c5c` feat(evolver): add `--api-base` option for DSPy LM
 
 <!-- CHANGELOG_MARKER -->
 
