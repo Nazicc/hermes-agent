@@ -6,3 +6,15 @@
 [2026-05-12T16:12:43.158Z] [INFO] File watcher started on .wolf/
 [2026-05-12T16:12:43.159Z] [INFO] OpenWolf daemon started
 [2026-05-12T16:12:43.160Z] [INFO] Dashboard server listening on port 18791
+[2026-05-12T18:00:00.521Z] [INFO] Executing task: Consolidate old memory
+[2026-05-12T18:00:00.535Z] [INFO] Task Consolidate old memory completed in 7ms
+[2026-05-12T18:25:02.027Z] [INFO] Daemon shutting down...
+[2026-05-12T18:25:02.028Z] [INFO] Daemon stopped
+[2026-05-12T18:25:02.555Z] [INFO] Scheduled task: Full anatomy rescan (0 */6 * * *)
+[2026-05-12T18:25:02.556Z] [INFO] Scheduled task: Consolidate old memory (0 2 * * *)
+[2026-05-12T18:25:02.556Z] [INFO] Scheduled task: Token audit report (0 0 * * 1)
+[2026-05-12T18:25:02.557Z] [INFO] Scheduled task: Cerebrum reflection (0 3 * * 0)
+[2026-05-12T18:25:02.557Z] [INFO] Scheduled task: AI suggestions (0 4 * * 1)
+[2026-05-12T18:25:02.558Z] [INFO] File watcher started on .wolf/
+[2026-05-12T18:25:02.558Z] [INFO] OpenWolf daemon started
+[2026-05-12T18:25:02.559Z] [INFO] Dashboard server listening on port 18791
