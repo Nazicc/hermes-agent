@@ -7,8 +7,7 @@ model:
   max_tokens: 16384
 providers: {}
 fallback_providers: []
-credential_pool_strategies:
-  minimax-cn: round_robin
+credential_pool_strategies: {}
 toolsets:
 - hermes-cli
 agent:
@@ -288,26 +287,27 @@ approvals:
   timeout: 60
   cron_mode: deny
 command_allowlist:
-- git force push (rewrites remote history)
-- shell command via -c/-lc flag
-- delete in root path
-- force kill processes
-- disk copy
-- script execution via -e/-c flag
 - overwrite system file via redirection
-- kill hermes/gateway process (self-termination)
-- SQL DROP
-- recursive delete
+- pipe remote content to shell
 - stop/restart hermes gateway (kills running agents)
-- hermes update (restarts gateway, kills running agents)
-- find -delete
+- git branch force delete
 - start gateway outside systemd (use 'systemctl --user restart hermes-gateway')
-- kill process via pgrep expansion (self-termination)
-- chmod +x followed by immediate execution
+- hermes update (restarts gateway, kills running agents)
+- kill hermes/gateway process (self-termination)
+- git force push (rewrites remote history)
+- delete in root path
+- shell command via -c/-lc flag
 - script execution via heredoc
 - git reset --hard (destroys uncommitted changes)
-- git branch force delete
-- pipe remote content to shell
+- SQL TRUNCATE
+- disk copy
+- SQL DROP
+- recursive delete
+- find -delete
+- force kill processes
+- chmod +x followed by immediate execution
+- kill process via pgrep expansion (self-termination)
+- script execution via -e/-c flag
 quick_commands: {}
 personalities: {}
 security:
@@ -375,6 +375,7 @@ streaming:
   enabled: false
 mcp_servers:
   sirchmunk:
+    enabled: true
     command: /Users/can/.local/bin/sirchmunk
     args:
     - mcp
@@ -382,27 +383,27 @@ mcp_servers:
     env:
       SIRCHMUNK_WORK_PATH: /Users/can/.hermes/sirchmunk-data
       LLM_API_KEY: ${OPENAI_API_KEY}
-    enabled: true
   simplemem:
+    enabled: true
     command: /Users/can/.hermes/mcp-venv/bin/python
     args:
     - /Users/can/.hermes/scripts/simplemem_mcp.py
     env:
       SIMPLEMEM_DATA_DIR: /Users/can/.hermes/simplemem-data
-    enabled: true
   simplemem_evolution:
+    enabled: true
     command: /Users/can/.hermes/mcp-venv/bin/python
     args:
     - /Users/can/.hermes/simplemem_evolution/simplemem_evolution_mcp.py
-    enabled: true
   skills-quality:
+    enabled: true
     command: /Users/can/.hermes/mcp-venv/bin/python
     args:
     - /Users/can/.hermes/skills_quality/skills_quality_mcp.py
     env:
       HERMES_SKILLS_DIR: /Users/can/.hermes/skills
-    enabled: true
   deerflow:
+    enabled: true
     command: /Users/can/.hermes/deer-flow-repo/backend/.venv/bin/python
     args:
     - /Users/can/.hermes/mcp-servers/deerflow-mcp/deerflow_mcp.py
@@ -410,9 +411,9 @@ mcp_servers:
       DEER_FLOW_PROJECT_ROOT: /Users/can/.hermes/deer-flow-repo
       DEERFLOW_CONFIG_PATH: /Users/can/.hermes/deer-flow-repo/config.yaml
       PYTHONPATH: /Users/can/.hermes/deer-flow-repo/backend/packages:${PYTHONPATH}
-      MINIMAX_CN_API_KEY: ${MINIMAX_CN_API_KEY}
-    enabled: true
+      VOLCENGINE_API_KEY: ${VOLCENGINE_API_KEY}
   beads:
+    enabled: true
     command: /Users/can/.hermes/mcp-venv/bin/python
     args:
     - -m
@@ -420,29 +421,30 @@ mcp_servers:
     env:
       BEADS_PATH: /Users/can/.local/bin/bd
       BEADS_WORKING_DIR: /Users/can/.hermes/beads
-    enabled: true
   deepcode:
+    enabled: true
     command: /Users/can/.hermes/mcp-venv/bin/python
     args:
     - /Users/can/.hermes/mcp-servers/deepcode-mcp/deepcode_mcp.py
     env:
       DEEPCODE_BASE_URL: http://127.0.0.1:8000
-    enabled: true
   deeptutor:
+    enabled: true
     command: /Users/can/.hermes/mcp-venv/bin/python
     args:
     - /Users/can/.hermes/mcp-servers/deeptutor-mcp/deeptutor_mcp.py
     env:
       DEEPTUTOR_BASE_URL: http://127.0.0.1:8001
-    enabled: true
   hindsight:
+    enabled: true
     command: /Users/can/.hermes/mcp-venv/bin/python
     args:
     - /Users/can/.hermes/scripts/hindsight_mcp.py
     env:
       HINDSIGHT_API_URL: http://localhost:18888
-    enabled: true
   browser-harness:
+    enabled: true
+    timeout: 120
     command: /Users/can/.hermes/mcp-venv/bin/python
     args:
     - /Users/can/.hermes/mcp-servers/browser-harness-mcp/bh_mcp.py
@@ -450,8 +452,6 @@ mcp_servers:
       BU_CDP_URL: http://127.0.0.1:9222
       BH_AGENT_WORKSPACE: /Users/can/.hermes/browser-harness-workspace
       BU_NAME: hermes-agent-bh
-    enabled: true
-    timeout: 120
 platforms:
   api_server:
     enabled: true
