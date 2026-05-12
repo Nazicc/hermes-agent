@@ -485,4 +485,84 @@ Lead 行动:
 
 ---
 
-*本文档基于 Hermes Agent 源码 (`delegate_tool.py`, 1200行) + 官方文档 (delegation.md, delegation-patterns.md, profiles.md, honcho.md, memory-providers.md, automate-with-cron.md) 实际阅读编写。Phase 2 实测数据来自 /tmp/team-test/ 5 个 Python 模块 132 个测试用例。*
+## 十、Phase 3 实战验证（2026-05-12）
+
+> Phase 3 验证 L3 Cron 巡检、邮箱协议、Beads 任务板、跨会话记忆四大协作基础设施
+
+### P3.1 L3 Cron 巡检 ✅
+
+| Cronjob | Schedule | Model | 用途 |
+|---------|----------|-------|------|
+| daily-security-patrol | 0 9 * * * | glm-5.1 | 安全巡检：git 敏感信息、API key 泄露 |
+| daily-team-standup | 0 20 * * * | glm-5.1 | 团队日结：Beads 统计、未完成任务 |
+
+### P3.2 邮箱协议 ✅
+
+- 目录：`~/.hermes/team/mailbox/{lead,coder,reviewer,researcher}/`
+- CLI：`mailbox.py send/read/pop/check`
+- 消息格式：JSON（from/to/type/priority/subject/body/timestamp/refs）
+- 完整链路验证通过：send → check → read → pop
+
+### P3.3 Beads 任务板集成 ✅
+
+完整工作流验证：
+
+| 步骤 | 操作 | 结果 |
+|------|------|------|
+| Lead 创建任务（带 assignee/priority） | `mcp_beads_create` × 3 | 3 任务创建成功 |
+| 设置依赖（blocks） | `mcp_beads_dep` | `beads-c6p` blocked by `beads-wsx` |
+| ready 查询 | `mcp_beads_ready` | 被阻塞任务不出现 |
+| Reviewer claim + close | `mcp_beads_close` | 依赖锁解除 |
+| 依赖解锁 | `mcp_beads_ready` | `beads-c6p` 自动出现在 ready |
+| Coder/Researcher close | `mcp_beads_close` | 5/5 closed |
+
+### P3.4 跨会话记忆 ✅
+
+| 机制 | 验证结果 |
+|------|---------|
+| Honcho per-peer 隔离 | 3 Worker 各 18 sessions，peer_id 正确隔离 |
+| Honcho chat（带记忆召回） | Coder 能回忆之前经验（tempfile, mock, threading） |
+| Honcho conclusions | 50 条已有结论可查询 |
+| Hindsight 跨银行记忆 | 写入 3 条 Worker 经验（tags 过滤），recall 查询返回 8 条 |
+
+### P3.5 实战任务：mailbox.py 安全审查 ✅
+
+完整 Coder→Reviewer→Fix→Approve 流程：
+
+| 阶段 | Actor | 内容 | 结果 |
+|------|-------|------|------|
+| 1 | Lead | 创建 `beads-2hq`(coder) + `beads-78i`(reviewer, blocked-by-2hq) | 任务+依赖建立 |
+| 2 | Coder | 实现文件锁(fcntl.flock)+大小限制+输入校验 | v1 提交 |
+| 3 | Reviewer | delegate_task 审查：3 Critical + 4 Important | **NEEDS_FIX** |
+| 4 | Coder | 修复全部 7 个问题 → v2 | 先锁后截断、字节级限制、UTC统一、毫秒文件名 |
+| 5 | Lead | 回归测试 11/11 通过 | **APPROVED** |
+| 6 | Lead | 关闭 `beads-2hq` + `beads-78i` | Beads 5/5 closed |
+
+Reviewer 发现的关键问题及修复：
+
+| # | 严重度 | 问题 | 修复 |
+|---|--------|------|------|
+| C1 | 🔴 | `open("w")` 加锁前截断文件 | `os.open(O_RDWR|O_CREAT)` → `flock(LOCK_EX)` → `ftruncate(0)` |
+| C2 | 🔴 | `pop_inbox` 的 `os.remove` 无锁 TOCTOU | 先 `os.open` → `flock(LOCK_EX)` → `os.remove` |
+| C3 | 🔴 | `os.remove` 未处理 `FileNotFoundError` | `try/except FileNotFoundError` |
+| I1 | 🟡 | `len(body)` 计字符不计字节 | `len(body.encode('utf-8'))` |
+| I2 | 🟡 | `_read_json_locked` 先开后锁窗口 | 改用 `os.open()` + `flock(LOCK_SH)` + `os.read()` |
+| I3 | 🟡 | UTC vs 本地时间戳不一致 | 统一 `datetime.now(timezone.utc)` |
+| I4 | 🟡 | 文件名精度仅到秒，同秒碰撞 | `%Y%m%dT%H%M%S%f` 毫秒级 |
+
+### P3.6 回归测试 ✅
+
+**mailbox.py v2: 11/11 tests passed**
+
+| 测试类 | 测试项 | 结果 |
+|--------|--------|------|
+| 输入校验 | 路径遍历 / `..` / 斜杠 / 空格拦截 + 合法名称通过 | 5/5 ✅ |
+| 大小限制 | 超大body(字节级) / 超长subject / 1MB边界 | 3/3 ✅ |
+| 文件锁 | 锁写+锁读一致性 / 锁内覆盖写入 | 2/2 ✅ |
+| 完整流程 | send→check→read→pop 链路 | 1/1 ✅ |
+
+**Phase 1+2+3 累计：132 + 11 = 143 tests passed**
+
+---
+
+*本文档基于 Hermes Agent 源码 + 官方文档实际阅读编写。Phase 1+2 实测数据来自 /tmp/team-test/，Phase 3 实测数据来自 Beads 任务板 + Honcho API + Hindsight API + mailbox.py v2 回归测试。*
