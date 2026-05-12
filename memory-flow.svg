@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 820" font-family="'SF Pro Display','Inter',system-ui,sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="100%" stop-color="#161b22"/>
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.3" flood-color="#000"/>
+    </filter>
+    <marker id="arr" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,3 L0,6 Z" fill="#8b949e"/>
+    </marker>
+    <marker id="arrG" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,3 L0,6 Z" fill="#3fb950"/>
+    </marker>
+    <marker id="arrO" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,3 L0,6 Z" fill="#ffa657"/>
+    </marker>
+    <marker id="arrB" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,3 L0,6 Z" fill="#58a6ff"/>
+    </marker>
+    <marker id="arrP" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,3 L0,6 Z" fill="#d2a8ff"/>
+    </marker>
+  </defs>
+
+  <rect width="1100" height="820" fill="url(#bg)" rx="12"/>
+
+  <!-- Title -->
+  <text x="550" y="38" text-anchor="middle" fill="#f0f6fc" font-size="20" font-weight="700">Hermes Agent — Memory Data Flow</text>
+  <text x="550" y="58" text-anchor="middle" fill="#8b949e" font-size="12">L0→L4 五层记忆架构 · SINK 设计模式 · 统一读写路径</text>
+
+  <!-- ============ WRITE PATH ============ -->
+  <rect x="30" y="75" width="1040" height="320" rx="10" fill="#0d1117" stroke="#238636" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="60" y="97" fill="#3fb950" font-size="14" font-weight="700">✏️ 写入路径 (Write Path)</text>
+
+  <!-- Source: User/Agent -->
+  <rect x="60" y="110" width="180" height="40" rx="20" fill="#1f6feb" filter="url(#shadow)" opacity="0.8"/>
+  <text x="150" y="135" text-anchor="middle" fill="#fff" font-size="12" font-weight="600">用户消息 / Agent 输出</text>
+
+  <!-- Branch lines from source -->
+  <line x1="150" y1="150" x2="150" y2="175" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arrG)"/>
+  <line x1="150" y1="150" x2="350" y2="175" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arrG)"/>
+  <line x1="150" y1="150" x2="550" y2="175" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arrG)"/>
+  <line x1="150" y1="150" x2="750" y2="175" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arrG)"/>
+  <line x1="150" y1="150" x2="950" y2="175" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arrG)"/>
+
+  <!-- L0 -->
+  <rect x="80" y="180" width="140" height="60" rx="8" fill="#21262d" stroke="#ffa657" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="150" y="205" text-anchor="middle" fill="#ffa657" font-size="13" font-weight="700">L0 memory{}</text>
+  <text x="150" y="225" text-anchor="middle" fill="#8b949e" font-size="9">即时写入 · 2.2KB</text>
+
+  <!-- L1 -->
+  <rect x="280" y="180" width="140" height="60" rx="8" fill="#21262d" stroke="#ffa657" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="350" y="205" text-anchor="middle" fill="#ffa657" font-size="13" font-weight="700">L1 SimpleMem</text>
+  <text x="350" y="225" text-anchor="middle" fill="#8b949e" font-size="9">content/write 即时</text>
+
+  <!-- L2 Dual Path -->
+  <rect x="470" y="180" width="160" height="60" rx="8" fill="#21262d" stroke="#ffa657" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="550" y="200" text-anchor="middle" fill="#ffa657" font-size="13" font-weight="700">L2 双路径</text>
+  <text x="550" y="218" text-anchor="middle" fill="#8b949e" font-size="9">content/write 即时</text>
+  <text x="550" y="233" text-anchor="middle" fill="#8b949e" font-size="9">+ session-buffer 批量</text>
+
+  <!-- L3 -->
+  <rect x="680" y="180" width="140" height="60" rx="8" fill="#21262d" stroke="#ffa657" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="750" y="205" text-anchor="middle" fill="#ffa657" font-size="13" font-weight="700">L3 Evolution</text>
+  <text x="750" y="225" text-anchor="middle" fill="#8b949e" font-size="9">evolve_server 独占</text>
+
+  <!-- L4 -->
+  <rect x="880" y="180" width="140" height="60" rx="8" fill="#21262d" stroke="#ffa657" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="950" y="205" text-anchor="middle" fill="#ffa657" font-size="13" font-weight="700">L4 Honcho</text>
+  <text x="950" y="225" text-anchor="middle" fill="#8b949e" font-size="9">cron /4h SINK同步</text>
+
+  <!-- Write details -->
+  <rect x="80" y="260" width="940" height="120" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+  <text x="100" y="282" fill="#c9d1d9" font-size="11" font-weight="600">写入触发逻辑：</text>
+  <text x="100" y="302" fill="#8b949e" font-size="10">• L0: memory tool add/replace → 直接写入 2.2KB 限额</text>
+  <text x="100" y="320" fill="#8b949e" font-size="10">• L1: content/write 参数 → SimpleMem LanceDB 即时持久化</text>
+  <text x="100" y="338" fill="#8b949e" font-size="10">• L2: on_memory_write 双路径 — content/write 即时同步 + session buffer 会话结束时批量写入 OpenViking/Hindsight</text>
+  <text x="100" y="356" fill="#8b949e" font-size="10">• L3: evolve_server 独占写入 evolution.db，不泄露到 L2</text>
+  <text x="100" y="374" fill="#8b949e" font-size="10">• L4: honcho_bridge.py 每4h同步 workspace/peer → Deriver 结论 → viking_remember 回流 L2</text>
+
+  <!-- ============ READ PATH ============ -->
+  <rect x="30" y="410" width="1040" height="270" rx="10" fill="#0d1117" stroke="#58a6ff" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="60" y="432" fill="#58a6ff" font-size="14" font-weight="700">📖 读取路径 (Read Path)</text>
+
+  <!-- Unified Entry -->
+  <rect x="400" y="445" width="300" height="40" rx="20" fill="#1f6feb" filter="url(#shadow)" opacity="0.8"/>
+  <text x="550" y="470" text-anchor="middle" fill="#fff" font-size="13" font-weight="600">memory_recall (统一检索入口)</text>
+
+  <!-- Branches -->
+  <line x1="470" y1="485" x2="200" y2="520" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#arrB)"/>
+  <line x1="550" y1="485" x2="550" y2="520" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#arrB)"/>
+  <line x1="630" y1="485" x2="850" y2="520" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#arrB)"/>
+
+  <!-- L2 OpenViking -->
+  <rect x="100" y="525" width="200" height="55" rx="8" fill="#21262d" stroke="#58a6ff" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="200" y="548" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="700">L2 OpenViking</text>
+  <text x="200" y="565" text-anchor="middle" fill="#8b949e" font-size="9">viking_search/read/browse</text>
+  <rect x="250" y="530" width="45" height="16" rx="4" fill="#1f6feb" opacity="0.6"/>
+  <text x="272" y="542" text-anchor="middle" fill="#fff" font-size="8" font-weight="600">优先</text>
+
+  <!-- L2 Hindsight -->
+  <rect x="450" y="525" width="200" height="55" rx="8" fill="#21262d" stroke="#d2a8ff" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="550" y="548" text-anchor="middle" fill="#d2a8ff" font-size="12" font-weight="700">L2 Hindsight</text>
+  <text x="550" y="565" text-anchor="middle" fill="#8b949e" font-size="9">recall / reflect 图推理</text>
+
+  <!-- L3 -->
+  <rect x="750" y="525" width="200" height="55" rx="8" fill="#21262d" stroke="#ffa657" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="850" y="548" text-anchor="middle" fill="#ffa657" font-size="12" font-weight="700">L3 Evolution</text>
+  <text x="850" y="565" text-anchor="middle" fill="#8b949e" font-size="9">gene_list / working_memory</text>
+  <rect x="870" y="530" width="45" height="16" rx="4" fill="#d29922" opacity="0.5"/>
+  <text x="892" y="542" text-anchor="middle" fill="#fff" font-size="8" font-weight="600">降级</text>
+
+  <!-- Merge + fallback -->
+  <rect x="250" y="600" width="600" height="40" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+  <text x="550" y="625" text-anchor="middle" fill="#c9d1d9" font-size="12" font-weight="600">去重合并 → 返回结果 · 低结果时触发 Hindsight reflect 深度推理补充</text>
+
+  <!-- On-demand reads -->
+  <rect x="100" y="655" width="940" height="16" rx="4" fill="transparent"/>
+  <text x="100" y="668" fill="#484f58" font-size="10">按需读取（非统一路径）：</text>
+  <text x="280" y="668" fill="#6e7681" font-size="10">L0 memory{} (prompt注入) · L1 search_memories/session_search · L4 honcho.chat() (一次性辩证)</text>
+
+  <!-- ============ Honcho SINK ============ -->
+  <rect x="30" y="695" width="1040" height="100" rx="10" fill="#0d1117" stroke="#d2a8ff" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="60" y="717" fill="#d2a8ff" font-size="14" font-weight="700">🔮 Honcho L4 — SINK Mode (下游处理器)</text>
+
+  <rect x="60" y="730" width="240" height="50" rx="6" fill="#21262d" stroke="#8b5cf6" stroke-width="1" filter="url(#shadow)"/>
+  <text x="180" y="752" text-anchor="middle" fill="#d2a8ff" font-size="11" font-weight="600">honcho-api :8889</text>
+  <text x="180" y="768" text-anchor="middle" fill="#8b949e" font-size="9">patched-v5 · CORS · auth</text>
+
+  <rect x="320" y="730" width="220" height="50" rx="6" fill="#21262d" stroke="#8b5cf6" stroke-width="1" filter="url(#shadow)"/>
+  <text x="430" y="752" text-anchor="middle" fill="#d2a8ff" font-size="11" font-weight="600">honcho-deriver</text>
+  <text x="430" y="768" text-anchor="middle" fill="#8b949e" font-size="9">GLM-5.1 · drop_params</text>
+
+  <rect x="560" y="730" width="200" height="50" rx="6" fill="#21262d" stroke="#8b5cf6" stroke-width="1" filter="url(#shadow)"/>
+  <text x="660" y="752" text-anchor="middle" fill="#d2a8ff" font-size="11" font-weight="600">honcho-postgres :5433</text>
+  <text x="660" y="768" text-anchor="middle" fill="#8b949e" font-size="9">pgvector · workspace</text>
+
+  <rect x="780" y="730" width="270" height="50" rx="6" fill="#161b22" stroke="#6e40c9" stroke-width="1"/>
+  <text x="915" y="750" text-anchor="middle" fill="#8b949e" font-size="10">独特价值：</text>
+  <text x="915" y="766" text-anchor="middle" fill="#8b949e" font-size="9">Deriver自动推导 + Dialectic辩证推理</text>
+
+  <!-- Arrows between Honcho components -->
+  <line x1="300" y1="755" x2="320" y2="755" stroke="#d2a8ff" stroke-width="1.2" marker-end="url(#arrP)"/>
+  <line x1="540" y1="755" x2="560" y2="755" stroke="#d2a8ff" stroke-width="1.2" marker-end="url(#arrP)"/>
+
+  <!-- Cron label -->
+  <text x="550" y="808" text-anchor="middle" fill="#484f58" font-size="10">Cron: evolver-bridge /4h · Bridge: honcho_bridge.py (163行) · 回流: viking_remember → L2</text>
+</svg>
