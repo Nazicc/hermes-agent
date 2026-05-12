@@ -427,14 +427,62 @@ Lead 行动:
 
 ---
 
-## 八、未解问题
+## 八、Phase 2 实测验证（2026-05-12）
 
-1. **`hermes chat -q` 输出截断** — 长任务输出可能被截断，需要验证
-2. **Profile Worker 并发** — 目前只能串行调用 `hermes chat -q`，无法像 delegate_task 那样 3 并发
-3. **Worker→Lead 回调** — Profile Worker 完成后如何通知 Lead？目前只能轮询输出
-4. **Honcho peer 配置** — `hermes honcho peer` 命令是否支持 `--profile` 参数？需要验证
-5. **ACP for Hermes** — 如果 hermes 未来支持 `--acp --stdio`，L2 可以通过 delegate_task(acp_command='hermes') 调用，实现并行+进度追踪
+> Phase 1 创建了 3 个 Profile（coder/reviewer/researcher），Phase 2 验证 4 种协作模式
+
+### P2.1 L1 delegate_task 并行 ✅
+
+3 个并行任务（项目文件统计 / TODO搜索 / 系统状态），总耗时 514.9s ≈ max(514.7, 90.2, 57.2)，**确认真正并行执行**。
+
+### P2.2 L2 Profile 串行管道 ✅
+
+| 步骤 | Profile | 动作 | 耗时 |
+|------|---------|------|------|
+| 1 | Coder | 创建 string_utils.py (slugify/truncate/count_words) + 17 tests | 2m1s |
+| 2 | Reviewer | PASS_WITH_NOTES: 0🚨 / 2⚠️ / 3💡 | 1m40s |
+| 3 | Lead | 修复 5 个 reviewer 建议 + 2 个额外 bug | 手动 |
+
+### P2.3 L1+L2 混合模式 ✅
+
+- **L1**: delegate_task 并行创建 config_utils.py (deep_merge/flatten_dict/get_nested) + 36 tests，133s
+- **L2**: Researcher 写代码质量报告到 research_report.md，1m9s
+- ⚠️ **Researcher + viking_search MCP 超时不可靠** — 需避免 MCP 依赖任务，改用 terminal/read_file
+
+### P2.4 对抗审查模式 ✅
+
+| Round | Actor | 动作 | 耗时 |
+|-------|-------|------|------|
+| 1 | Coder | 创建 validate_utils.py + 31 tests | 1m22s |
+| 2 | Reviewer | REQUEST_CHANGES: 2🚨(XSS实体编码绕过+畸形HTML) + 4⚠️ + 2💡 | 1m45s |
+| 3 | Lead | 修复全部 8 个问题 + 新增 8 个安全测试 | 手动 |
+| 4 | Reviewer | **APPROVED** — 所有修复验证通过 | 1m0s |
+
+关键修复：sanitize_html 两遍 strip（防实体编码 XSS）、正则增强（捕获未闭合标签）、端口范围 1-65535、IP 地址支持、连续点号拒绝、空白归一化。
+
+### Phase 2 回归测试
+
+**132/132 tests passed**（string_utils 24 + math_utils 14 + date_utils 20 + config_utils 36 + validate_utils 38）
+
+### Phase 2 关键发现
+
+1. **`hermes chat -q -p <profile>` 稳定可用** — 平均 1-2m/任务，输出完整
+2. **L1 并行确认有效** — 总耗时 ≈ 最慢子任务耗时，非串行累加
+3. **对抗审查有效** — Reviewer 发现了 Coder 遗漏的 XSS 和畸形标签漏洞
+4. **Researcher + MCP 不可靠** — viking_search 启动慢导致超时，应避免 MCP 依赖
+5. **Profile Worker 串行是瓶颈** — 目前无法并行启动多个 `hermes chat`
 
 ---
 
-*本文档基于 Hermes Agent 源码 (`delegate_tool.py`, 1200行) + 官方文档 (delegation.md, delegation-patterns.md, profiles.md, honcho.md, memory-providers.md, automate-with-cron.md) 实际阅读编写。*
+## 九、未解问题（Phase 2 更新）
+
+1. ~~**`hermes chat -q` 输出截断**~~ — 已验证：简单任务输出完整，复杂任务偶尔被 banner 冲刷
+2. **Profile Worker 并发** — 目前只能串行调用 `hermes chat -q`，无法像 delegate_task 那样 3 并发
+3. **Worker→Lead 回调** — Profile Worker 完成后如何通知 Lead？目前只能轮询输出
+4. ~~**Honcho peer 配置**~~ — **已确认**：`hermes honcho peer` 不存在，实际用 config.yaml `peer_id` 字段
+5. **ACP for Hermes** — 如果 hermes 未来支持 `--acp --stdio`，L2 可以通过 delegate_task(acp_command='hermes') 调用，实现并行+进度追踪
+6. **Researcher MCP 超时** — viking_search 启动慢（~45s），超时不可靠。Workaround: 避免在时敏任务中使用 MCP
+
+---
+
+*本文档基于 Hermes Agent 源码 (`delegate_tool.py`, 1200行) + 官方文档 (delegation.md, delegation-patterns.md, profiles.md, honcho.md, memory-providers.md, automate-with-cron.md) 实际阅读编写。Phase 2 实测数据来自 /tmp/team-test/ 5 个 Python 模块 132 个测试用例。*

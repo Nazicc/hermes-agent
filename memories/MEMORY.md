@@ -35,3 +35,5 @@
 [MEMORY · 2026-05-10] 记忆分层架构P0-P4全部完成✅。P0:14条L0→L2写入。P1:双路径(content/write即时+session-buffered)。P2:Hindsight整合为L2图推理层(on_session_end→_sync_to_hindsight)。P3:evolve_server验证仅写L3(evolution.db)无L2泄露。P4:memory_recall统一检索L2>hindsight>L3+去重+Hindsight reflect低结果时触发。commits:0565e25→a36a5e9→dac448a已push。工具:6个(viking_search/read/browse/remember/add_resource/memory_recall)
 §
 [MULTI-AGENT · 2026-05-12] Hermes v2 方案已写：`/Users/can/.hermes/docs/multi-agent-team-v2.md`（18,614字节）。核心：4层体系(L0 Lead/L1 Profile/L2 delegate_task/L3 cron)；Hermes官方机制+Claude Code Agent Teams 5理念融合。Profile=一等公民(独立SOUL.md/.env/state.db/gateway)；Honcho共享记忆；Beads任务板；邮箱协议；Git worktree隔离。
+§
+[MULTI-AGENT · 2026-05-12] Phase 2 协作模式实战进行中。P2.1 待测：L1 delegate_task 3子任务并行。Profile已就绪(coder/reviewer/researcher, peer_id隔离)。每个子阶段完成后必须回归测试。
