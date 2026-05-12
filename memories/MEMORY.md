@@ -7,10 +7,9 @@
 §
 [ENV · 永久] 工作目录：/Users/can/.hermes/hermes-agent（所有文件读写只能在此）
 §
-[ENV · 永久] MiniMax API：Token Plan Key（sk-cp-...）Base URL=https://api.minimaxi.com/anthropic；普通 key/SimpleMem=https://api.minimaxi.com/v1
+[ENV · 永久] 主力Provider: Volcengine/GLM-5.1 (ark.cn-beijing.volces.com)；MiniMax已废弃(429配额超限)
 §
-§
-[ENV · 2026-04-29] Token Plan key (sk-cp-...) 已验证可用：abab6.5s-chat 和 MiniMax-M2.7 可用；MiniMax-Text-01（非 mini）返回 403。config.yaml minimax-cn provider 使用 SkillClaw relay (localhost:30000)，不直连。
+[ENV · 2026-04-29] SkillClaw已停用(SkillClaw relay仅代理MiniMax)；MiniMax Token Plan已废弃(skp-...key全429)
 §
 §
 [USER · 永久] 用户名：r00tcc（飞书平台）
@@ -23,7 +22,7 @@
 §
 [SECURITY · 2026-04-29] git 仓库敏感信息审计：先用 `git log origin/main..HEAD` 扫 unpushed commits；用 `git log --all -S "sk-" --oneline` 搜历史（比 grep 快）；`.gitignore` 确保 `evolver/` 等含真实 key 的 .env 目录被排除；测试文件中的 `ghp_xx...xxxx` 类是占位符，非泄露；skills-quality 会误判 git 读取命令为 dangerous，skill 创建会被 block
 §
-[ENV · 2026-04-29] SkillClaw 仅有 /v1/models 端点（返回 {"id":"MiniMax-M2.7"}），无 admin/debug/health 端点
+[ENV · 2026-04-29] SkillClaw已停用(仅代理MiniMax)；MiniMax已废弃
 §
 [ENV · 2026-05-01] skills/ gitlink→普通目录已修复；push 408网络问题；skills/新增3个security skill(Hack-with-Github/Awesome-Hacking)
 §
@@ -35,4 +34,4 @@
 §
 [MEMORY · 2026-05-10] 记忆分层架构P0-P4全部完成✅。P0:14条L0→L2写入。P1:双路径(content/write即时+session-buffered)。P2:Hindsight整合为L2图推理层(on_session_end→_sync_to_hindsight)。P3:evolve_server验证仅写L3(evolution.db)无L2泄露。P4:memory_recall统一检索L2>hindsight>L3+去重+Hindsight reflect低结果时触发。commits:0565e25→a36a5e9→dac448a已push。工具:6个(viking_search/read/browse/remember/add_resource/memory_recall)
 §
-[MEMTEST · 2026-05-11] 记忆系统测试：MCP长会话断连(需重启)但直连API全通。Hindsight✓ recall✓ reflect✓。Viking✓ remember✓ search✓。SimpleMem LanceDB有数据。session_search✓。Evolution DB 10条(无genes表)。context_bloat已修。Honcho blocked:MiniMax 429
+[MULTI-AGENT · 2026-05-12] Hermes v2 方案已写：`/Users/can/.hermes/docs/multi-agent-team-v2.md`（18,614字节）。核心：4层体系(L0 Lead/L1 Profile/L2 delegate_task/L3 cron)；Hermes官方机制+Claude Code Agent Teams 5理念融合。Profile=一等公民(独立SOUL.md/.env/state.db/gateway)；Honcho共享记忆；Beads任务板；邮箱协议；Git worktree隔离。
