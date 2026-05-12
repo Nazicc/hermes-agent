@@ -276,33 +276,31 @@ def get_bank_profile(bank_id: str = DEFAULT_BANK) -> str:
     Args:
         bank_id: Memory bank ID (default: hermes-agent)
     """
-    client = _get_client()
     try:
-        from hindsight_client import BankProfileResponse
+        import urllib.request
 
-        # Hindsight client may not expose bank profile directly
-        # Try to call it, fallback to known info
-        if hasattr(client, "get_bank_profile"):
-            profile = client.get_bank_profile(bank_id=bank_id)
-            return json.dumps(
-                {
-                    "status": "ok",
-                    "bank_id": bank_id,
-                    "total_memories": getattr(profile, "total_memories", "unknown"),
-                    "last_updated": getattr(profile, "last_updated", "unknown"),
-                },
-                ensure_ascii=False,
-            )
-        else:
-            return json.dumps(
-                {
-                    "status": "ok",
-                    "bank_id": bank_id,
-                    "note": "Bank profile API not exposed in current client version. "
-                            "Use recall() to check memory content.",
-                },
-                ensure_ascii=False,
-            )
+        base = HINDSIGHT_BASE_URL.rstrip("/")
+        # Fetch stats
+        stats_resp = urllib.request.urlopen(
+            f"{base}/v1/default/banks/{bank_id}/stats", timeout=10
+        )
+        stats = json.loads(stats_resp.read().decode())
+        # Fetch profile (disposition)
+        profile_resp = urllib.request.urlopen(
+            f"{base}/v1/default/banks/{bank_id}/profile", timeout=10
+        )
+        profile = json.loads(profile_resp.read().decode())
+
+        return json.dumps(
+            {
+                "status": "ok",
+                "bank_id": bank_id,
+                "stats": stats,
+                "profile": profile,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
     except Exception as e:
         return json.dumps({"status": "error", "message": str(e)}, ensure_ascii=False)
 
