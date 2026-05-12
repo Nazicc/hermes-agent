@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Hindsight MCP Server — wraps Vectorize/Hindsight as a FastMCP server for hermes.
-Exposes: retain, recall, reflect, list_banks, get_bank_profile
+Hindsight MCP Server — wraps Vectorize/Hindsight REST API as a FastMCP server for hermes.
+Exposes: retain, recall, reflect, list_banks, get_bank_profile, health_check
 Bank: hermes-agent (all Hermes memories in one bank)
+
+Uses direct REST API calls via urllib — no hindsight_client dependency.
 """
 import os
-import sys
 import json
 import logging
 from pathlib import Path
@@ -22,28 +23,33 @@ if _ENV_PATH.exists():
 
 # ── Defaults ───────────────────────────────────────────────────────────────
 HINDSIGHT_BASE_URL = os.environ.get("HINDSIGHT_API_URL", "http://localhost:18888")
-MINIMAX_API_KEY = os.environ.get("MINIMAX_CN_API_KEY", os.environ.get("OPENAI_API_KEY", ""))
-MINIMAX_BASE_URL = os.environ.get("MINIMAX_CN_BASE_URL", "https://api.minimaxi.com/anthropic")
 DEFAULT_BANK = "hermes-agent"
 
-# ── Lazy Hindsight client ──────────────────────────────────────────────────
-_HINDSIGHT_CLIENT = None
+log = logging.getLogger("hindsight_mcp")
 
 
-def _get_client():
-    global _HINDSIGHT_CLIENT
-    if _HINDSIGHT_CLIENT is None:
-        from hindsight_client import Hindsight
+# ── REST helpers ──────────────────────────────────────────────────────────
+def _api(method: str, path: str, body: dict | None = None, timeout: int = 30) -> dict:
+    """Call Hindsight REST API and return parsed JSON dict."""
+    import urllib.request
+    import urllib.error
 
-        _HINDSIGHT_CLIENT = Hindsight(
-            base_url=HINDSIGHT_BASE_URL,
-            api_key=MINIMAX_API_KEY,
-            timeout=300.0,
-        )
-    return _HINDSIGHT_CLIENT
+    base = HINDSIGHT_BASE_URL.rstrip("/")
+    url = f"{base}{path}"
+    data = json.dumps(body).encode() if body else None
+    req = urllib.request.Request(url, data=data, method=method.upper())
+    req.add_header("Content-Type", "application/json")
+    try:
+        resp = urllib.request.urlopen(req, timeout=timeout)
+        return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode()[:500]
+        return {"status": "error", "http_code": e.code, "message": err_body}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
-# ── FastMCP server ─────────────────────────────────────────────────────────
+# ── FastMCP server ────────────────────────────────────────────────────────
 from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP(
@@ -54,7 +60,7 @@ mcp = FastMCP(
 )
 
 
-# ── Tools ──────────────────────────────────────────────────────────────────
+# ── Tools ─────────────────────────────────────────────────────────────────
 
 @mcp.tool()
 def retain(
@@ -74,29 +80,29 @@ def retain(
         timestamp: Optional ISO timestamp (auto-generated if omitted)
         tags: Optional list of tags for filtering (e.g., ['user', 'code', 'decision'])
     """
-    client = _get_client()
-    try:
-        ts = None
-        if timestamp:
-            ts = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-        response = client.retain(
-            bank_id=bank_id,
-            content=content,
-            context=context,
-            timestamp=ts,
-            tags=tags,
-        )
-        return json.dumps(
-            {
-                "status": "stored",
-                "memory_id": response.memory_id,
-                "bank_id": bank_id,
-                "content_preview": content[:100] + ("..." if len(content) > 100 else ""),
-            },
-            ensure_ascii=False,
-        )
-    except Exception as e:
-        return json.dumps({"status": "error", "message": str(e)}, ensure_ascii=False)
+    body: dict = {"content": content}
+    if context:
+        body["context"] = context
+    if timestamp:
+        body["occurred_at"] = timestamp
+    if tags:
+        body["tags"] = tags
+
+    resp = _api("POST", f"/v1/default/banks/{bank_id}/memories", body)
+    if resp.get("status") == "error":
+        return json.dumps(resp, ensure_ascii=False)
+
+    # Extract memory_id from response
+    memory_id = resp.get("id") or resp.get("memory_id") or "unknown"
+    return json.dumps(
+        {
+            "status": "stored",
+            "memory_id": memory_id,
+            "bank_id": bank_id,
+            "content_preview": content[:100] + ("..." if len(content) > 100 else ""),
+        },
+        ensure_ascii=False,
+    )
 
 
 @mcp.tool()
@@ -124,47 +130,42 @@ def recall(
         tags_match: 'any'|'all' — match any or all tags
         max_results: Number of top results to return (default: 10)
     """
-    client = _get_client()
-    try:
-        response = client.recall(
-            bank_id=bank_id,
-            query=query,
-            types=types,
-            max_tokens=max_tokens,
-            budget=budget,
-            tags=tags,
-            tags_match=tags_match,
-        )
+    body: dict = {"query": query, "max_tokens": max_tokens}
+    if budget:
+        body["budget"] = budget
+    if types:
+        body["types"] = types
+    if tags:
+        body["tags"] = tags
+    if tags_match:
+        body["tags_match"] = tags_match
 
-        # Parse response — recall returns structured results
-        results = []
-        try:
-            items = list(response) if hasattr(response, "__iter__") else [response]
-            for item in items[:max_results]:
-                if hasattr(item, "content"):
-                    results.append(
-                        {
-                            "type": getattr(item, "type", "unknown"),
-                            "content": item.content,
-                            "score": getattr(item, "score", None),
-                        }
-                    )
-        except Exception:
-            # Fallback: try to stringify
-            results = [{"raw": str(response)}]
+    resp = _api("POST", f"/v1/default/banks/{bank_id}/memories/recall", body, timeout=60)
+    if resp.get("status") == "error":
+        return json.dumps(resp, ensure_ascii=False)
 
-        return json.dumps(
-            {
-                "status": "ok",
-                "query": query,
-                "bank_id": bank_id,
-                "results": results,
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-    except Exception as e:
-        return json.dumps({"status": "error", "message": str(e)}, ensure_ascii=False)
+    results = resp.get("results", [])[:max_results]
+    # Compress each result for context efficiency
+    compact = []
+    for r in results:
+        compact.append({
+            "type": r.get("type", "unknown"),
+            "text": r.get("text", "")[:500],
+            "tags": r.get("tags", []),
+            "occurred": r.get("occurred_start", ""),
+        })
+
+    return json.dumps(
+        {
+            "status": "ok",
+            "query": query,
+            "bank_id": bank_id,
+            "count": len(compact),
+            "results": compact,
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
 
 
 @mcp.tool()
@@ -194,56 +195,28 @@ def reflect(
         include_facts: Include supporting facts in response
         exclude_mental_models: Skip inferred mental models
     """
-    client = _get_client()
-    try:
-        response = client.reflect(
-            bank_id=bank_id,
-            query=query,
-            budget=budget,
-            context=context,
-            max_tokens=max_tokens,
-            include_facts=include_facts,
-            exclude_mental_models=exclude_mental_models,
-        )
+    body: dict = {"query": query, "budget": budget}
+    if context:
+        body["context"] = context
+    if max_tokens:
+        body["max_tokens"] = max_tokens
+    body["include_facts"] = include_facts
+    body["exclude_mental_models"] = exclude_mental_models
 
-        # Parse reflect response
-        insights = []
-        try:
-            if hasattr(response, "text") and response.text:
-                insights = [{"content": response.text, "type": "reflection"}]
-            elif hasattr(response, "insights") and response.insights:
-                for insight in response.insights:
-                    insights.append(
-                        {
-                            "content": getattr(insight, "content", str(insight)),
-                            "type": getattr(insight, "type", "insight"),
-                        }
-                    )
-            elif hasattr(response, "facts") and response.facts:
-                for fact in response.facts:
-                    insights.append(
-                        {
-                            "content": getattr(fact, "content", str(fact)),
-                            "type": "fact",
-                        }
-                    )
-            else:
-                insights = [{"content": str(response)}]
-        except Exception:
-            insights = [{"content": str(response)}]
+    resp = _api("POST", f"/v1/default/banks/{bank_id}/reflect", body, timeout=120)
+    if resp.get("status") == "error":
+        return json.dumps(resp, ensure_ascii=False)
 
-        return json.dumps(
-            {
-                "status": "ok",
-                "query": query,
-                "bank_id": bank_id,
-                "insights": insights,
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-    except Exception as e:
-        return json.dumps({"status": "error", "message": str(e)}, ensure_ascii=False)
+    return json.dumps(
+        {
+            "status": "ok",
+            "query": query,
+            "bank_id": bank_id,
+            "text": resp.get("text", ""),
+            "usage": resp.get("usage"),
+        },
+        ensure_ascii=False,
+    )
 
 
 @mcp.tool()
@@ -255,16 +228,18 @@ def list_banks(bank_prefix: str = "hermes") -> str:
     Args:
         bank_prefix: Filter banks by prefix (default: 'hermes')
     """
-    # Hindsight client doesn't expose a list_banks API directly.
-    # Return the known default bank info.
+    resp = _api("GET", "/v1/default/banks")
+    if resp.get("status") == "error":
+        return json.dumps(resp, ensure_ascii=False)
+
+    banks = resp.get("banks", [])
+    if bank_prefix:
+        banks = [b for b in banks if b.get("bank_id", "").startswith(bank_prefix)]
+
     return json.dumps(
-        {
-            "status": "ok",
-            "default_bank": DEFAULT_BANK,
-            "note": "Hindsight cloud API does not expose multi-bank listing. "
-                    "All Hermes memories use bank_id='hermes-agent'.",
-        },
+        {"status": "ok", "count": len(banks), "banks": banks},
         ensure_ascii=False,
+        indent=2,
     )
 
 
@@ -276,33 +251,21 @@ def get_bank_profile(bank_id: str = DEFAULT_BANK) -> str:
     Args:
         bank_id: Memory bank ID (default: hermes-agent)
     """
-    try:
-        import urllib.request
+    profile = _api("GET", f"/v1/default/banks/{bank_id}/profile")
+    stats = _api("GET", f"/v1/default/banks/{bank_id}/stats")
 
-        base = HINDSIGHT_BASE_URL.rstrip("/")
-        # Fetch stats
-        stats_resp = urllib.request.urlopen(
-            f"{base}/v1/default/banks/{bank_id}/stats", timeout=10
-        )
-        stats = json.loads(stats_resp.read().decode())
-        # Fetch profile (disposition)
-        profile_resp = urllib.request.urlopen(
-            f"{base}/v1/default/banks/{bank_id}/profile", timeout=10
-        )
-        profile = json.loads(profile_resp.read().decode())
+    err_p = profile.get("status") == "error"
+    err_s = stats.get("status") == "error"
+    if err_p and err_s:
+        return json.dumps({"status": "error", "message": f"profile: {profile.get('message')}; stats: {stats.get('message')}"}, ensure_ascii=False)
 
-        return json.dumps(
-            {
-                "status": "ok",
-                "bank_id": bank_id,
-                "stats": stats,
-                "profile": profile,
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-    except Exception as e:
-        return json.dumps({"status": "error", "message": str(e)}, ensure_ascii=False)
+    result = {"status": "ok", "bank_id": bank_id}
+    if not err_p:
+        result["profile"] = profile
+    if not err_s:
+        result["stats"] = stats
+
+    return json.dumps(result, ensure_ascii=False, indent=2)
 
 
 @mcp.tool()
@@ -310,16 +273,14 @@ def health_check() -> str:
     """
     Check if Hindsight Docker container and API are running.
     """
-    try:
-        import httpx
+    import urllib.request
+    import urllib.error
 
-        resp = httpx.get(f"{HINDSIGHT_BASE_URL}/health", timeout=10)
+    try:
+        resp = urllib.request.urlopen(f"{HINDSIGHT_BASE_URL}/health", timeout=10)
+        data = json.loads(resp.read().decode())
         return json.dumps(
-            {
-                "status": "ok" if resp.status_code == 200 else "degraded",
-                "http_status": resp.status_code,
-                "body": resp.text[:200],
-            },
+            {"status": "ok" if data.get("status") == "healthy" else "degraded", "body": data},
             ensure_ascii=False,
         )
     except Exception as e:
