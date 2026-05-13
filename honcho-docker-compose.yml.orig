@@ -1,0 +1,55 @@
+version: "3.8"
+services:
+  honcho-api:
+    image: honcho-api:patched-v5
+    container_name: honcho-api
+    command: bash -c "python3 /app/honcho-patch.py && fastapi run --host 0.0.0.0 --port 8889 src/main.py"
+    ports:
+      - "0.0.0.0:8889:8889"
+    volumes:
+      - ./honcho-config.toml:/app/config.toml:ro
+    environment:
+      - DATABASE_URL=postgresql://honcho:honcho123@honcho-postgres:5432/honcho
+    networks:
+      - honcho-net
+    restart: unless-stopped
+    depends_on:
+      - honcho-postgres
+
+  honcho-deriver:
+    image: honcho-api:patched-v5
+    container_name: honcho-deriver
+    command: bash -c "python3 /app/honcho-patch.py && python3 -m src.deriver"
+    # NO port mapping - deriver is a queue worker, not an HTTP service
+    volumes:
+      - ./honcho-config.toml:/app/config.toml:ro
+    environment:
+      - DATABASE_URL=postgresql://honcho:honcho123@honcho-postgres:5432/honcho
+    networks:
+      - honcho-net
+    restart: unless-stopped
+    depends_on:
+      - honcho-postgres
+
+  honcho-postgres:
+    image: pgvector/pgvector:pg16
+    container_name: honcho-postgres
+    ports:
+      - "127.0.0.1:5433:5432"
+    environment:
+      - POSTGRES_USER=honcho
+      - POSTGRES_PASSWORD=honcho123
+      - POSTGRES_DB=honcho
+    volumes:
+      - honcho-pgdata:/var/lib/postgresql/data
+    networks:
+      - honcho-net
+    restart: unless-stopped
+
+networks:
+  honcho-net:
+    external: true
+
+volumes:
+  honcho-pgdata:
+    external: true

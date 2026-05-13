@@ -1,0 +1,33 @@
+services:
+  honcho-api:
+    image: honcho-api:patched-v5
+    container_name: honcho-api
+    command: bash -c "python3 /app/honcho-patch.py && fastapi run --host 0.0.0.0 --port 8889 src/main.py"
+    ports:
+      - "0.0.0.0:8889:8889"
+    volumes:
+      - ./honcho-config.toml:/app/config.toml:ro
+    environment:
+      - DATABASE_URL=postgresql://honcho:honcho123@honcho-postgres:5432/honcho
+    networks:
+      - honcho-net
+    restart: unless-stopped
+
+  honcho-deriver:
+    image: honcho-api:patched-v5
+    container_name: honcho-deriver
+    command: bash -c "python3 /app/honcho-patch.py && python3 -m src.deriver"
+    # Deriver is a queue worker, not HTTP. Map 8889 to localhost-only random port to avoid conflict.
+    ports:
+      - "127.0.0.1::8889"
+    volumes:
+      - ./honcho-config.toml:/app/config.toml:ro
+    environment:
+      - DATABASE_URL=postgresql://honcho:honcho123@honcho-postgres:5432/honcho
+    networks:
+      - honcho-net
+    restart: unless-stopped
+
+networks:
+  honcho-net:
+    external: true
