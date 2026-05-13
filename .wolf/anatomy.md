@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-05-12T22:00:01.013Z
-> Files: 562 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-05-13T16:00:00.491Z
+> Files: 563 tracked | Anatomy hits: 0 | Misses: 0
 
 ## ./
 
@@ -35,6 +35,7 @@
 - `hermes-already-has-routines.md` — Hermes Agent Has Had "Routines" Since March (~1564 tok)
 - `honcho_bridge.py` — HonchoBridge: write_messages, get_conclusions, sync_conclusions_to_viking, chat + 2 more (~1534 tok)
 - `honcho-config.toml` — Honcho Configuration - Self-hosted with MiniMax LLM backend (~930 tok)
+- `honcho-docker-compose.yml` — Docker Compose: 0 services (~291 tok)
 - `honcho-patch.py` — Honcho startup patch: fix embedding dims, disable json_mode, patch OpenAI backend for GLM, fix prompt for JSON output. (~1008 tok)
 - `honcho.json` (~70 tok)
 - `LICENSE` — Project license (~286 tok)

@@ -20,3 +20,9 @@
 [2026-05-12T18:25:02.559Z] [INFO] Dashboard server listening on port 18791
 [2026-05-12T22:00:00.347Z] [INFO] Executing task: Full anatomy rescan
 [2026-05-12T22:00:01.019Z] [INFO] Task Full anatomy rescan completed in 670ms
+[2026-05-13T10:00:00.636Z] [INFO] Executing task: Full anatomy rescan
+[2026-05-13T10:00:01.087Z] [INFO] Task Full anatomy rescan completed in 450ms
+[2026-05-13T16:00:00.121Z] [INFO] Executing task: Full anatomy rescan
+[2026-05-13T16:00:00.493Z] [INFO] Task Full anatomy rescan completed in 371ms
+[2026-05-13T18:00:00.638Z] [INFO] Executing task: Consolidate old memory
+[2026-05-13T18:00:00.658Z] [INFO] Task Consolidate old memory completed in 18ms
