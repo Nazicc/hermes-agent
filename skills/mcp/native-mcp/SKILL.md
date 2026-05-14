@@ -1,170 +1,357 @@
 ---
 name: native-mcp
-description: "Use when registering a new MCP server with hermes, adding or configuring MCP servers via CLI or config, debugging MCP tool discovery, connecting a custom FastMCP server, setting up MCP auto-start, resolving MCP connection failures, understanding hermes-agent MCP architecture, or connecting stdio-mode MCP servers. NOT for: browsing GitHub issues or comments, code review workflows, CI/CD automation, LLM API configuration, non-MCP tool integrations, or general network setup."
-category: general
+description: "MCP client: connect servers, register tools (stdio/HTTP)."
 version: 1.0.0
-...
 author: Hermes Agent
-...
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [MCP, Tools, Integrations]
+    related_skills: [mcporter]
 ---
 
-# Native MCP — Built-in MCP Client
+# Native MCP Client
 
-Built-in MCP (Model Context Protocol) client that connects to external MCP servers, discovers their tools, and registers them as native Hermes Agent tools. Supports stdio and HTTP transports with automatic reconnection, security filtering, and zero-config tool injection.
+Hermes Agent has a built-in MCP client that connects to MCP servers at startup, discovers their tools, and makes them available as first-class tools the agent can call directly. No bridge CLI needed -- tools from MCP servers appear alongside built-in tools like `terminal`, `read_file`, etc.
 
-## Architecture
+## When to Use
 
+Use this whenever you want to:
+- Connect to MCP servers and use their tools from within Hermes Agent
+- Add external capabilities (filesystem access, GitHub, databases, APIs) via MCP
+- Run local stdio-based MCP servers (npx, uvx, or any command)
+- Connect to remote HTTP/StreamableHTTP MCP servers
+- Have MCP tools auto-discovered and available in every conversation
 
-hermes-agent (MCP orchestrator)
-  ├── MCP server 1 (stdio) → hermes spawns the subprocess
-  ├── MCP server 2 (HTTP) → hermes connects as client
-  └── MCP server N (stdio)
+For ad-hoc, one-off MCP tool calls from the terminal without configuring anything, see the `mcporter` skill instead.
 
+## Prerequisites
 
-Hermes Agent uses the MCP Python SDK to manage external MCP servers. Servers communicate via **stdio** (subprocess stdin/stdout) or **HTTP** (SSE/streamable-http). The gateway process (`ai.hermes.gateway`) spawns MCP server subprocesses and proxies their tools to the LLM.
+- **mcp Python package** -- optional dependency; install with `pip install mcp`. If not installed, MCP support is silently disabled.
+- **Node.js** -- required for `npx`-based MCP servers (most community servers)
+- **uv** -- required for `uvx`-based MCP servers (Python-based servers)
 
-## Registering an MCP Server
+Install the MCP SDK:
 
-### Via CLI (recommended)
+```bash
+pip install mcp
+# or, if using uv:
+uv pip install mcp
+```
 
-bash
-hermes mcp add <name> --command <cmd> --args <args...> --env <KEY=VALUE>
-hermes mcp list          # Show all registered servers
-hermes mcp test <name>   # Test a server connection
-hermes mcp remove <name>  # Remove a server
+## Quick Start
 
+Add MCP servers to `~/.hermes/config.yaml` under the `mcp_servers` key:
 
-**Examples:**
+```yaml
+mcp_servers:
+  time:
+    command: "uvx"
+    args: ["mcp-server-time"]
+```
 
-bash
-# sirchmunk MCP server
-hermes mcp add sirchmunk \
-  --command sirchmunk \
-  --args mcp serve \
-  --env SIRCHMUNK_WORK_PATH=/Users/can/.hermes/sirchmunk-data
+Restart Hermes Agent. On startup it will:
+1. Connect to the server
+2. Discover available tools
+3. Register them with the prefix `mcp_time_*`
+4. Inject them into all platform toolsets
 
-# custom FastMCP script
-hermes mcp add myserver \
-  --command /path/to/venv/bin/python \
-  --args /path/to/mcp_server.py
+You can then use the tools naturally -- just ask the agent to get the current time.
 
+## Configuration Reference
 
-### Via config.yaml
+Each entry under `mcp_servers` is a server name mapped to its config. There are two transport types: **stdio** (command-based) and **HTTP** (url-based).
 
-MCP servers are stored in `~/.hermes/config.yaml`:
+### Stdio Transport (command + args)
 
-yaml
-mcp:
-  <server_name>:
-    command: <executable_path>
-    args:
-      - <arg1>
-      - <arg2>
+```yaml
+mcp_servers:
+  server_name:
+    command: "npx"             # (required) executable to run
+    args: ["-y", "pkg-name"]   # (optional) command arguments, default: []
+    env:                       # (optional) environment variables for the subprocess
+      SOME_API_KEY: "value"
+    timeout: 120               # (optional) per-tool-call timeout in seconds, default: 120
+    connect_timeout: 60        # (optional) initial connection timeout in seconds, default: 60
+```
+
+### HTTP Transport (url)
+
+```yaml
+mcp_servers:
+  server_name:
+    url: "https://my-server.example.com/mcp"   # (required) server URL
+    headers:                                     # (optional) HTTP headers
+      Authorization: "Bearer sk-..."
+    timeout: 180               # (optional) per-tool-call timeout in seconds, default: 120
+    connect_timeout: 60        # (optional) initial connection timeout in seconds, default: 60
+```
+
+### All Config Options
+
+| Option            | Type   | Default | Description                                       |
+|-------------------|--------|---------|---------------------------------------------------|
+| `command`         | string | --      | Executable to run (stdio transport, required)     |
+| `args`            | list   | `[]`    | Arguments passed to the command                   |
+| `env`             | dict   | `{}`    | Extra environment variables for the subprocess    |
+| `url`             | string | --      | Server URL (HTTP transport, required)             |
+| `headers`         | dict   | `{}`    | HTTP headers sent with every request              |
+| `timeout`         | int    | `120`   | Per-tool-call timeout in seconds                  |
+| `connect_timeout` | int    | `60`    | Timeout for initial connection and discovery      |
+
+Note: A server config must have either `command` (stdio) or `url` (HTTP), not both.
+
+## How It Works
+
+### Startup Discovery
+
+When Hermes Agent starts, `discover_mcp_tools()` is called during tool initialization:
+
+1. Reads `mcp_servers` from `~/.hermes/config.yaml`
+2. For each server, spawns a connection in a dedicated background event loop
+3. Initializes the MCP session and calls `list_tools()` to discover available tools
+4. Registers each tool in the Hermes tool registry
+
+### Tool Naming Convention
+
+MCP tools are registered with the naming pattern:
+
+```
+mcp_{server_name}_{tool_name}
+```
+
+Hyphens and dots in names are replaced with underscores for LLM API compatibility.
+
+Examples:
+- Server `filesystem`, tool `read_file` → `mcp_filesystem_read_file`
+- Server `github`, tool `list-issues` → `mcp_github_list_issues`
+- Server `my-api`, tool `fetch.data` → `mcp_my_api_fetch_data`
+
+### Auto-Injection
+
+After discovery, MCP tools are automatically injected into all `hermes-*` platform toolsets (CLI, Discord, Telegram, etc.). This means MCP tools are available in every conversation without any additional configuration.
+
+### Connection Lifecycle
+
+- Each server runs as a long-lived asyncio Task in a background daemon thread
+- Connections persist for the lifetime of the agent process
+- If a connection drops, automatic reconnection with exponential backoff kicks in (up to 5 retries, max 60s backoff)
+- On agent shutdown, all connections are gracefully closed
+
+### Idempotency
+
+`discover_mcp_tools()` is idempotent -- calling it multiple times only connects to servers that aren't already connected. Failed servers are retried on subsequent calls.
+
+## Transport Types
+
+### Stdio Transport
+
+The most common transport. Hermes launches the MCP server as a subprocess and communicates over stdin/stdout.
+
+```yaml
+mcp_servers:
+  filesystem:
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/projects"]
+```
+
+The subprocess inherits a **filtered** environment (see Security section below) plus any variables you specify in `env`.
+
+### HTTP / StreamableHTTP Transport
+
+For remote or shared MCP servers. Requires the `mcp` package to include HTTP client support (`mcp.client.streamable_http`).
+
+```yaml
+mcp_servers:
+  remote_api:
+    url: "https://mcp.example.com/mcp"
+    headers:
+      Authorization: "Bearer sk-..."
+```
+
+If HTTP support is not available in your installed `mcp` version, the server will fail with an ImportError and other servers will continue normally.
+
+## Security
+
+### Environment Variable Filtering
+
+For stdio servers, Hermes does NOT pass your full shell environment to MCP subprocesses. Only safe baseline variables are inherited:
+
+- `PATH`, `HOME`, `USER`, `LANG`, `LC_ALL`, `TERM`, `SHELL`, `TMPDIR`
+- Any `XDG_*` variables
+
+All other environment variables (API keys, tokens, secrets) are excluded unless you explicitly add them via the `env` config key. This prevents accidental credential leakage to untrusted MCP servers.
+
+```yaml
+mcp_servers:
+  github:
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-github"]
     env:
-      <ENV_VAR>: <value>
-    enabled: true
+      # Only this token is passed to the subprocess
+      GITHUB_PERSONAL_ACCESS_TOKEN: "ghp_..."
+```
 
+### Credential Stripping in Error Messages
 
-**Example:**
+If an MCP tool call fails, any credential-like patterns in the error message are automatically redacted before being shown to the LLM. This covers:
 
-yaml
-mcp:
-  simplemem:
-    command: /Users/can/.venv/bin/python
-    args:
-      - /Users/can/.hermes/scripts/simplemem_mcp.py
-    enabled: true
-
-
-## FastMCP Server Development
-
-### FastMCP `__init__()` Gotchas (Critical)
-
-**FastMCP does NOT accept these kwargs:**
-- ❌ `description` — does not exist in installed version
-- ❌ `dependencies` — does not exist in installed version
-
-**FastMCP DOES accept:**
-- ✅ `name: str`
-- ✅ `instructions: str` (this is the description/instructions field)
-- ✅ `website_url: str | None`
-- ✅ `icons: list[Icon] | None`
-- ✅ `retry_interval: int | None`
-- ✅ `tool` kwarg accepts a list
-
-**Always verify with:**
-bash
-~/.hermes/hermes-agent/venv/bin/python -c "from mcp.server.fastmcp import FastMCP; import inspect; print(inspect.signature(FastMCP.__init__))"
-
-
-### FastMCP Example
-
-python
-from mcp.server.fastmcp import FastMCP
-
-mcp = FastMCP(
-    name="my-tool",
-    instructions="What this tool does"
-)
-
-@mcp.tool()
-def my_tool(arg1: str, arg2: int) -> str:
-    """Tool description for the LLM."""
-    return f"Result: {arg1} {arg2}"
-
-if __name__ == "__main__":
-    mcp.run()
-
-
-## Stdio MCP Gotchas (Critical)
-
-**`asyncio.TaskGroup` cannot be pickled across process boundaries.** If your MCP server uses `asyncio.TaskGroup` for concurrent operations and hermes-agent fails with `TypeError: cannot pickle 'locked' object`, switch to `subprocess.Popen` with explicit stdin/stdout communication instead of asyncio internals.
-
-**Stdio MCP subprocess communication works across Python versions.** Even if hermes-agent runs Python 3.11 and the MCP server runs Python 3.12, stdio JSON-RPC communication works fine — the limitation is only with asyncio primitives that rely on pickling.
-
-## Environment Variable Passing
-
-**Env vars are NOT inherited by default.** When launching MCP servers via subprocess, hermes-agent uses `_build_safe_env()` which only passes a whitelist of `SAFE_ENV_KEYS`. To pass custom env vars:
-
-1. Set them in the `env:` block in `config.yaml`
-2. Or use `os.environ.setdefault()` in the MCP server script itself to read from the parent environment
-
-## MCP Server Code Location
-
-**MCP server code should live inside the hermes-agent git repo** (e.g., `hermes-agent/mcp-servers/<name>/`) NOT in `~/.hermes/` which is not git-tracked. This ensures version history and recovery capability.
-
-## Auto-Start with launchd
-
-The hermes gateway (`ai.hermes.gateway.plist`) auto-starts at login with `RunAtLoad=true` and `KeepAlive=true`. MCP servers registered in `config.yaml` auto-start with the gateway — no separate launchd entry needed for stdio servers.
-
-For HTTP MCP servers that need their own persistent process:
-
-bash
-# Create plist at ~/Library/LaunchAgents/com.hermes.<name>.plist
-launchctl load ~/Library/LaunchAgents/com.hermes.<name>.plist
-
+- GitHub PATs (`ghp_...`)
+- OpenAI-style keys (`sk-...`)
+- Bearer tokens
+- Generic `token=`, `key=`, `API_KEY=`, `password=`, `secret=` patterns
 
 ## Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| `FastMCP.__init__() got an unexpected keyword argument 'description'` | Use `instructions` instead of `description`, remove `dependencies` |
-| `cannot pickle 'locked' object` | Replace `asyncio.TaskGroup` with `subprocess.Popen` for stdio communication |
-| MCP server not starting | Check `hermes mcp list` — server should show `✓ enabled` |
-| Tools not discovered | Run `hermes mcp test <name>` to verify connection |
-| Env vars not passed | Set them explicitly in `config.yaml` `env:` block or use `os.environ.setdefault()` |
-| Wrong Python venv | Ensure the `command` uses the correct venv's Python |
-| ModuleNotFoundError | The MCP server's venv must have all required packages |
-| Port conflicts | HTTP transport servers must use unique ports |
+### "MCP SDK not available -- skipping MCP tool discovery"
 
-**Debugging steps:**
-1. Check registered servers: `hermes mcp list`
-2. Test connection: `hermes mcp test <name>`
-3. Inspect config: `grep -A10 'mcp:' ~/.hermes/config.yaml`
-4. Server logs: Check the MCP server's own stdout/stderr (stdio mode)
-5. Gateway logs: `tail -f ~/.hermes/logs/gateway.log`
+The `mcp` Python package is not installed. Install it:
 
-## Related Skills
+```bash
+pip install mcp
+```
 
-- `mcp-debugging` — Systematic debugging when MCP tools fail
-- `simplemem-integration` — Example of wrapping a Python library as an MCP server
+### "No MCP servers configured"
+
+No `mcp_servers` key in `~/.hermes/config.yaml`, or it's empty. Add at least one server.
+
+### "Failed to connect to MCP server 'X'"
+
+Common causes:
+- **Command not found**: The `command` binary isn't on PATH. Ensure `npx`, `uvx`, or the relevant command is installed.
+- **Package not found**: For npx servers, the npm package may not exist or may need `-y` in args to auto-install.
+- **Timeout**: The server took too long to start. Increase `connect_timeout`.
+- **Port conflict**: For HTTP servers, the URL may be unreachable.
+
+### "MCP server 'X' requires HTTP transport but mcp.client.streamable_http is not available"
+
+Your `mcp` package version doesn't include HTTP client support. Upgrade:
+
+```bash
+pip install --upgrade mcp
+```
+
+### Tools not appearing
+
+- Check that the server is listed under `mcp_servers` (not `mcp` or `servers`)
+- Ensure the YAML indentation is correct
+- Look at Hermes Agent startup logs for connection messages
+- Tool names are prefixed with `mcp_{server}_{tool}` -- look for that pattern
+
+### Connection keeps dropping
+
+The client retries up to 5 times with exponential backoff (1s, 2s, 4s, 8s, 16s, capped at 60s). If the server is fundamentally unreachable, it gives up after 5 attempts. Check the server process and network connectivity.
+
+## Examples
+
+### Time Server (uvx)
+
+```yaml
+mcp_servers:
+  time:
+    command: "uvx"
+    args: ["mcp-server-time"]
+```
+
+Registers tools like `mcp_time_get_current_time`.
+
+### Filesystem Server (npx)
+
+```yaml
+mcp_servers:
+  filesystem:
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/documents"]
+    timeout: 30
+```
+
+Registers tools like `mcp_filesystem_read_file`, `mcp_filesystem_write_file`, `mcp_filesystem_list_directory`.
+
+### GitHub Server with Authentication
+
+```yaml
+mcp_servers:
+  github:
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_PERSONAL_ACCESS_TOKEN: "ghp_xxxxxxxxxxxxxxxxxxxx"
+    timeout: 60
+```
+
+Registers tools like `mcp_github_list_issues`, `mcp_github_create_pull_request`, etc.
+
+### Remote HTTP Server
+
+```yaml
+mcp_servers:
+  company_api:
+    url: "https://mcp.mycompany.com/v1/mcp"
+    headers:
+      Authorization: "Bearer sk-xxxxxxxxxxxxxxxxxxxx"
+      X-Team-Id: "engineering"
+    timeout: 180
+    connect_timeout: 30
+```
+
+### Multiple Servers
+
+```yaml
+mcp_servers:
+  time:
+    command: "uvx"
+    args: ["mcp-server-time"]
+
+  filesystem:
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+
+  github:
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_PERSONAL_ACCESS_TOKEN: "ghp_xxxxxxxxxxxxxxxxxxxx"
+
+  company_api:
+    url: "https://mcp.internal.company.com/mcp"
+    headers:
+      Authorization: "Bearer sk-xxxxxxxxxxxxxxxxxxxx"
+    timeout: 300
+```
+
+All tools from all servers are registered and available simultaneously. Each server's tools are prefixed with its name to avoid collisions.
+
+## Sampling (Server-Initiated LLM Requests)
+
+Hermes supports MCP's `sampling/createMessage` capability — MCP servers can request LLM completions through the agent during tool execution. This enables agent-in-the-loop workflows (data analysis, content generation, decision-making).
+
+Sampling is **enabled by default**. Configure per server:
+
+```yaml
+mcp_servers:
+  my_server:
+    command: "npx"
+    args: ["-y", "my-mcp-server"]
+    sampling:
+      enabled: true           # default: true
+      model: "gemini-3-flash" # model override (optional)
+      max_tokens_cap: 4096    # max tokens per request
+      timeout: 30             # LLM call timeout (seconds)
+      max_rpm: 10             # max requests per minute
+      allowed_models: []      # model whitelist (empty = all)
+      max_tool_rounds: 5      # tool loop limit (0 = disable)
+      log_level: "info"       # audit verbosity
+```
+
+Servers can also include `tools` in sampling requests for multi-turn tool-augmented workflows. The `max_tool_rounds` config prevents infinite tool loops. Per-server audit metrics (requests, errors, tokens, tool use count) are tracked via `get_mcp_status()`.
+
+Disable sampling for untrusted servers with `sampling: { enabled: false }`.
+
+## Notes
+
+- MCP tools are called synchronously from the agent's perspective but run asynchronously on a dedicated background event loop
+- Tool results are returned as JSON with either `{"result": "..."}` or `{"error": "..."}`
+- The native MCP client is independent of `mcporter` -- you can use both simultaneously
+- Server connections are persistent and shared across all conversations in the same agent process
+- Adding or removing servers requires restarting the agent (no hot-reload currently)

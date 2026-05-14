@@ -8,14 +8,64 @@ import os
 from pathlib import Path
 
 
+_profile_fallback_warned: bool = False
+
+
 def get_hermes_home() -> Path:
     """Return the Hermes home directory (default: ~/.hermes).
 
     Reads HERMES_HOME env var, falls back to ~/.hermes.
     This is the single source of truth — all other copies should import this.
+
+    When ``HERMES_HOME`` is unset but an ``active_profile`` file indicates
+    a non-default profile is active, logs a loud one-shot warning to
+    ``errors.log`` so cross-profile data corruption is diagnosable instead
+    of silent.  Behavior is unchanged otherwise — we still return
+    ``~/.hermes`` — because raising here would brick 30+ module-level
+    callers that import this at load time.  Subprocess spawners are
+    expected to propagate ``HERMES_HOME`` explicitly (see the systemd
+    template in ``hermes_cli/gateway.py`` and the kanban dispatcher in
+    ``hermes_cli/kanban_db.py``).  See https://github.com/NousResearch/hermes-agent/issues/18594.
     """
     val = os.environ.get("HERMES_HOME", "").strip()
-    return Path(val) if val else Path.home() / ".hermes"
+    if val:
+        return Path(val)
+
+    # Guard: if a non-default profile is sticky-active, warn once that
+    # the fallback to the default profile is almost certainly wrong.
+    global _profile_fallback_warned
+    if not _profile_fallback_warned:
+        try:
+            # Inline the default-root resolution from get_default_hermes_root()
+            # to stay import-safe (this function is called from module scope
+            # in 30+ files; we cannot afford to trigger logging setup here).
+            active_path = (Path.home() / ".hermes" / "active_profile")
+            active = active_path.read_text().strip() if active_path.exists() else ""
+        except (UnicodeDecodeError, OSError):
+            active = ""
+        if active and active != "default":
+            _profile_fallback_warned = True
+            # Write directly to stderr.  We intentionally do NOT route this
+            # through ``logging`` because (a) this function is called at
+            # module-import time from 30+ sites, often before logging is
+            # configured, and (b) root-logger propagation would double-emit
+            # on consoles where a StreamHandler is already attached.
+            import sys
+            msg = (
+                f"[HERMES_HOME fallback] HERMES_HOME is unset but active "
+                f"profile is {active!r}. Falling back to ~/.hermes, which "
+                f"is the DEFAULT profile — not {active!r}. Any data this "
+                f"process writes will land in the wrong profile. The "
+                f"subprocess spawner should pass HERMES_HOME explicitly "
+                f"(see issue #18594)."
+            )
+            try:
+                sys.stderr.write(msg + "\n")
+                sys.stderr.flush()
+            except Exception:
+                pass
+
+    return Path.home() / ".hermes"
 
 
 def get_default_hermes_root() -> Path:
@@ -183,7 +233,7 @@ def is_wsl() -> bool:
     if _wsl_detected is not None:
         return _wsl_detected
     try:
-        with open("/proc/version", "r") as f:
+        with open("/proc/version", "r", encoding="utf-8") as f:
             _wsl_detected = "microsoft" in f.read().lower()
     except Exception:
         _wsl_detected = False
@@ -210,7 +260,7 @@ def is_container() -> bool:
         _container_detected = True
         return True
     try:
-        with open("/proc/1/cgroup", "r") as f:
+        with open("/proc/1/cgroup", "r", encoding="utf-8") as f:
             cgroup = f.read()
             if "docker" in cgroup or "podman" in cgroup or "/lxc/" in cgroup:
                 _container_detected = True
@@ -293,93 +343,3 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODELS_URL = f"{OPENROUTER_BASE_URL}/models"
 
 AI_GATEWAY_BASE_URL = "https://ai-gateway.vercel.sh/v1"
-
-
-# =============================================================================
-# Multi-Provider Model Catalog
-# =============================================================================
-# Model IDs, benchmark scores, and Base URLs for Anthropic-compatible providers.
-# Sources: SWE-bench Verified (Feb 2026), Terminal-Bench 2.0 (Feb 2026).
-# Use this table when adding or comparing provider integrations.
-#
-# Provider       Model ID             SWE-bench  TB2     Base URL (Anthropic compat)
-# ------------   ------------------  ---------  ------  ---------------------------------
-# Anthropic      claude-sonnet-4-6    79.6%      59.1%   (default, no base_url)
-# MiniMax        MiniMax-M2.5          80.2%       -     api.minimaxi.com/anthropic
-# GLM (Zhipu)    glm-5                77.8%       -     open.bigmodel.cn/api/anthropic
-# Kimi (Moon.)   kimi-k2.5            76.8%       -     api.moonshot.cn/anthropic
-# DeepSeek       deepseek-chat(v3.2)  73.0%       -     api.deepseek.com/anthropic
-#
-# International endpoints (no region suffix):
-#   MiniMax:     https://api.minimax.io/anthropic
-#   GLM:         https://api.z.ai/api/anthropic
-#   Kimi:        https://platform.moonshot.ai/anthropic
-#   DeepSeek:    https://api.deepseek.com/anthropic
-#
-# China mainland endpoints (served from within mainland CN):
-#   MiniMax:     https://api.minimaxi.com/anthropic
-#   GLM:         https://open.bigmodel.cn/api/anthropic
-#   Kimi:        https://api.moonshot.cn/anthropic
-#   DeepSeek:    https://api.deepseek.com/anthropic  (same endpoint globally)
-#
-# NOTE: MiniMax sk-cp- keys MUST use https://api.minimaxi.com/v1 (OpenAI compat),
-#       not the /anthropic endpoint. The /anthropic endpoint is for
-#       Anthropic-format (sk-ant-) keys only.
-# =============================================================================
-
-PROVIDER_MODEL_CATALOG: list[dict] = [
-    {
-        "provider": "Anthropic",
-        "model_id": "claude-sonnet-4-6",
-        "model_id_aliases": ["claude-opus-4.6", "claude-sonnet-4-5", "claude-opus-4-5"],
-        "swe_bench": "79.6%",
-        "terminal_bench": "59.1%",
-        "base_url": None,  # use default
-        "key_format": "sk-ant-",
-        "notes": "Default provider. Use for production.",
-    },
-    {
-        "provider": "MiniMax",
-        "model_id": "MiniMax-M2.5",
-        "model_id_aliases": ["MiniMax-M2.1"],
-        "swe_bench": "80.2%",
-        "terminal_bench": None,
-        "base_url": "https://api.minimaxi.com/anthropic",
-        "base_url_intl": "https://api.minimax.io/anthropic",
-        "key_format": "sk-ant-",
-        "notes": "Best SWE-bench score. sk-ant- keys use /anthropic endpoint. "
-                 "sk-cp- keys (Token Plan) MUST use https://api.minimaxi.com/v1 (OpenAI compat).",
-    },
-    {
-        "provider": "GLM (Zhipu AI)",
-        "model_id": "glm-5",
-        "model_id_aliases": ["glm-4", "glm-3"],
-        "swe_bench": "77.8%",
-        "terminal_bench": None,
-        "base_url": "https://open.bigmodel.cn/api/anthropic",
-        "base_url_intl": "https://api.z.ai/api/anthropic",
-        "key_format": "sk-ant-",
-        "notes": "Strong Chinese-language performance. Zhipu is also known as Charcter.AI's parent.",
-    },
-    {
-        "provider": "Kimi (Moonshot AI)",
-        "model_id": "kimi-k2.5",
-        "model_id_aliases": ["kimi-k2", "moonshot-v1"],
-        "swe_bench": "76.8%",
-        "terminal_bench": None,
-        "base_url": "https://api.moonshot.cn/anthropic",
-        "base_url_intl": "https://platform.moonshot.ai/anthropic",
-        "key_format": "sk-ant-",
-        "notes": "Good long-context performance (200K context window).",
-    },
-    {
-        "provider": "DeepSeek",
-        "model_id": "deepseek-chat",
-        "model_id_aliases": ["deepseek-chat-v3", "deepseek-coder"],
-        "swe_bench": "73.0%",
-        "terminal_bench": None,
-        "base_url": "https://api.deepseek.com/anthropic",
-        "key_format": "sk-ant-",
-        "notes": "Lowest cost. Single global endpoint (no regional split).",
-    },
-]

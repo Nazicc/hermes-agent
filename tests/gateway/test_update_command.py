@@ -17,13 +17,14 @@ from gateway.session import SessionSource
 
 
 def _make_event(text="/update", platform=Platform.TELEGRAM,
-                user_id="12345", chat_id="67890"):
+                user_id="12345", chat_id="67890", thread_id=None):
     """Build a MessageEvent for testing."""
     source = SessionSource(
         platform=platform,
         user_id=user_id,
         chat_id=chat_id,
         user_name="testuser",
+        thread_id=thread_id,
     )
     return MessageEvent(text=text, source=source)
 
@@ -77,14 +78,22 @@ class TestHandleUpdateCommand:
         runner = _make_runner()
 
         with patch("gateway.run._hermes_home", tmp_path):
-            # The handler in update.py does Path(__file__).parent.parent.parent.resolve()
+            # The handler does Path(__file__).parent.parent.resolve()
             # We need to make project_root / '.git' not exist.
-            # Patch the update module's __file__ to point at a fake path.
-            fake_file = str(fake_root / "gateway" / "runners" / "update.py")
-            (fake_root / "gateway" / "runners").mkdir(parents=True)
-            (fake_root / "gateway" / "runners" / "update.py").touch()
+            # Since Path(__file__) resolves to the real gateway/run.py,
+            # project_root will be the real hermes-agent dir (which HAS .git).
+            # Patch Path to control this.
+            original_path = Path
 
-            with patch("gateway.runners.update.__file__", fake_file):
+            class FakePath(type(Path())):
+                pass
+
+            # Actually, simplest: just patch the specific file attr
+            fake_file = str(fake_root / "gateway" / "run.py")
+            (fake_root / "gateway").mkdir(parents=True)
+            (fake_root / "gateway" / "run.py").touch()
+
+            with patch("gateway.run.__file__", fake_file):
                 result = await runner._handle_update_command(event)
 
         assert "Not a git repository" in result
@@ -99,12 +108,12 @@ class TestHandleUpdateCommand:
         fake_root = tmp_path / "project"
         fake_root.mkdir()
         (fake_root / ".git").mkdir()
-        (fake_root / "gateway" / "runners").mkdir(parents=True)
-        (fake_root / "gateway" / "runners" / "update.py").touch()
-        fake_file = str(fake_root / "gateway" / "runners" / "update.py")
+        (fake_root / "gateway").mkdir()
+        (fake_root / "gateway" / "run.py").touch()
+        fake_file = str(fake_root / "gateway" / "run.py")
 
         with patch("gateway.run._hermes_home", tmp_path), \
-             patch("gateway.runners.update.__file__", fake_file), \
+             patch("gateway.run.__file__", fake_file), \
              patch("shutil.which", return_value=None), \
              patch("importlib.util.find_spec", return_value=None):
             result = await runner._handle_update_command(event)
@@ -121,9 +130,9 @@ class TestHandleUpdateCommand:
         fake_root = tmp_path / "project"
         fake_root.mkdir()
         (fake_root / ".git").mkdir()
-        (fake_root / "gateway" / "runners").mkdir(parents=True)
-        (fake_root / "gateway" / "runners" / "update.py").touch()
-        fake_file = str(fake_root / "gateway" / "runners" / "update.py")
+        (fake_root / "gateway").mkdir()
+        (fake_root / "gateway" / "run.py").touch()
+        fake_file = str(fake_root / "gateway" / "run.py")
         hermes_home = tmp_path / "hermes"
         hermes_home.mkdir()
 
@@ -131,7 +140,7 @@ class TestHandleUpdateCommand:
         fake_spec = MagicMock()
 
         with patch("gateway.run._hermes_home", hermes_home), \
-             patch("gateway.runners.update.__file__", fake_file), \
+             patch("gateway.run.__file__", fake_file), \
              patch("shutil.which", return_value=None), \
              patch("importlib.util.find_spec", return_value=fake_spec), \
              patch("subprocess.Popen", mock_popen):
@@ -186,14 +195,14 @@ class TestHandleUpdateCommand:
         fake_root = tmp_path / "project"
         fake_root.mkdir()
         (fake_root / ".git").mkdir()
-        (fake_root / "gateway" / "runners").mkdir(parents=True)
-        (fake_root / "gateway" / "runners" / "update.py").touch()
-        fake_file = str(fake_root / "gateway" / "runners" / "update.py")
+        (fake_root / "gateway").mkdir()
+        (fake_root / "gateway" / "run.py").touch()
+        fake_file = str(fake_root / "gateway" / "run.py")
         hermes_home = tmp_path / "hermes"
         hermes_home.mkdir()
 
         with patch("gateway.run._hermes_home", hermes_home), \
-             patch("gateway.runners.update.__file__", fake_file), \
+             patch("gateway.run.__file__", fake_file), \
              patch("shutil.which", side_effect=lambda x: "/usr/bin/hermes" if x == "hermes" else "/usr/bin/setsid"), \
              patch("subprocess.Popen"):
             result = await runner._handle_update_command(event)
@@ -207,6 +216,34 @@ class TestHandleUpdateCommand:
         assert not (hermes_home / ".update_exit_code").exists()
 
     @pytest.mark.asyncio
+    async def test_writes_pending_marker_with_thread_id(self, tmp_path):
+        """Persists thread_id so update notifications can route back to the thread."""
+        runner = _make_runner()
+        event = _make_event(
+            platform=Platform.TELEGRAM,
+            chat_id="99999",
+            thread_id="777",
+        )
+
+        fake_root = tmp_path / "project"
+        fake_root.mkdir()
+        (fake_root / ".git").mkdir()
+        (fake_root / "gateway").mkdir()
+        (fake_root / "gateway" / "run.py").touch()
+        fake_file = str(fake_root / "gateway" / "run.py")
+        hermes_home = tmp_path / "hermes"
+        hermes_home.mkdir()
+
+        with patch("gateway.run._hermes_home", hermes_home), \
+             patch("gateway.run.__file__", fake_file), \
+             patch("shutil.which", side_effect=lambda x: "/usr/bin/hermes" if x == "hermes" else "/usr/bin/setsid"), \
+             patch("subprocess.Popen"):
+            await runner._handle_update_command(event)
+
+        data = json.loads((hermes_home / ".update_pending.json").read_text())
+        assert data["thread_id"] == "777"
+
+    @pytest.mark.asyncio
     async def test_spawns_setsid(self, tmp_path):
         """Uses setsid when available."""
         runner = _make_runner()
@@ -215,15 +252,15 @@ class TestHandleUpdateCommand:
         fake_root = tmp_path / "project"
         fake_root.mkdir()
         (fake_root / ".git").mkdir()
-        (fake_root / "gateway" / "runners").mkdir(parents=True)
-        (fake_root / "gateway" / "runners" / "update.py").touch()
-        fake_file = str(fake_root / "gateway" / "runners" / "update.py")
+        (fake_root / "gateway").mkdir()
+        (fake_root / "gateway" / "run.py").touch()
+        fake_file = str(fake_root / "gateway" / "run.py")
         hermes_home = tmp_path / "hermes"
         hermes_home.mkdir()
 
         mock_popen = MagicMock()
         with patch("gateway.run._hermes_home", hermes_home), \
-             patch("gateway.runners.update.__file__", fake_file), \
+             patch("gateway.run.__file__", fake_file), \
              patch("shutil.which", side_effect=lambda x: f"/usr/bin/{x}"), \
              patch("subprocess.Popen", mock_popen):
             result = await runner._handle_update_command(event)
@@ -244,9 +281,9 @@ class TestHandleUpdateCommand:
         fake_root = tmp_path / "project"
         fake_root.mkdir()
         (fake_root / ".git").mkdir()
-        (fake_root / "gateway" / "runners").mkdir(parents=True)
-        (fake_root / "gateway" / "runners" / "update.py").touch()
-        fake_file = str(fake_root / "gateway" / "runners" / "update.py")
+        (fake_root / "gateway").mkdir()
+        (fake_root / "gateway" / "run.py").touch()
+        fake_file = str(fake_root / "gateway" / "run.py")
         hermes_home = tmp_path / "hermes"
         hermes_home.mkdir()
 
@@ -260,7 +297,7 @@ class TestHandleUpdateCommand:
             return None
 
         with patch("gateway.run._hermes_home", hermes_home), \
-             patch("gateway.runners.update.__file__", fake_file), \
+             patch("gateway.run.__file__", fake_file), \
              patch("shutil.which", side_effect=which_no_setsid), \
              patch("subprocess.Popen", mock_popen):
             result = await runner._handle_update_command(event)
@@ -284,14 +321,14 @@ class TestHandleUpdateCommand:
         fake_root = tmp_path / "project"
         fake_root.mkdir()
         (fake_root / ".git").mkdir()
-        (fake_root / "gateway" / "runners").mkdir(parents=True)
-        (fake_root / "gateway" / "runners" / "update.py").touch()
-        fake_file = str(fake_root / "gateway" / "runners" / "update.py")
+        (fake_root / "gateway").mkdir()
+        (fake_root / "gateway" / "run.py").touch()
+        fake_file = str(fake_root / "gateway" / "run.py")
         hermes_home = tmp_path / "hermes"
         hermes_home.mkdir()
 
         with patch("gateway.run._hermes_home", hermes_home), \
-             patch("gateway.runners.update.__file__", fake_file), \
+             patch("gateway.run.__file__", fake_file), \
              patch("shutil.which", side_effect=lambda x: f"/usr/bin/{x}"), \
              patch("subprocess.Popen", side_effect=OSError("spawn failed")):
             result = await runner._handle_update_command(event)
@@ -310,14 +347,14 @@ class TestHandleUpdateCommand:
         fake_root = tmp_path / "project"
         fake_root.mkdir()
         (fake_root / ".git").mkdir()
-        (fake_root / "gateway" / "runners").mkdir(parents=True)
-        (fake_root / "gateway" / "runners" / "update.py").touch()
-        fake_file = str(fake_root / "gateway" / "runners" / "update.py")
+        (fake_root / "gateway").mkdir()
+        (fake_root / "gateway" / "run.py").touch()
+        fake_file = str(fake_root / "gateway" / "run.py")
         hermes_home = tmp_path / "hermes"
         hermes_home.mkdir()
 
         with patch("gateway.run._hermes_home", hermes_home), \
-             patch("gateway.runners.update.__file__", fake_file), \
+             patch("gateway.run.__file__", fake_file), \
              patch("shutil.which", side_effect=lambda x: f"/usr/bin/{x}"), \
              patch("subprocess.Popen"):
             result = await runner._handle_update_command(event)
@@ -423,6 +460,31 @@ class TestSendUpdateNotification:
         call_args = mock_adapter.send.call_args
         assert call_args[0][0] == "67890"  # chat_id
         assert "Update complete" in call_args[0][1] or "update finished" in call_args[0][1].lower()
+
+    @pytest.mark.asyncio
+    async def test_sends_notification_with_thread_metadata(self, tmp_path):
+        """Final update notification preserves thread metadata when present."""
+        runner = _make_runner()
+        hermes_home = tmp_path / "hermes"
+        hermes_home.mkdir()
+
+        pending = {
+            "platform": "telegram",
+            "chat_id": "67890",
+            "thread_id": "777",
+            "user_id": "12345",
+        }
+        (hermes_home / ".update_pending.json").write_text(json.dumps(pending))
+        (hermes_home / ".update_output.txt").write_text("done")
+        (hermes_home / ".update_exit_code").write_text("0")
+
+        mock_adapter = AsyncMock()
+        runner.adapters = {Platform.TELEGRAM: mock_adapter}
+
+        with patch("gateway.run._hermes_home", hermes_home):
+            await runner._send_update_notification()
+
+        assert mock_adapter.send.call_args.kwargs["metadata"] == {"thread_id": "777"}
 
     @pytest.mark.asyncio
     async def test_strips_ansi_codes(self, tmp_path):

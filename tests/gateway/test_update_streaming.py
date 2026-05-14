@@ -36,23 +36,26 @@ def _make_event(text="/update", platform=Platform.TELEGRAM,
 def _make_runner(hermes_home=None):
     """Create a bare GatewayRunner without calling __init__."""
     from gateway.run import GatewayRunner
-    from gateway.runners.update import UpdateManager
     runner = object.__new__(GatewayRunner)
     runner.adapters = {}
     runner._voice_mode = {}
+    runner._update_prompt_pending = {}
     runner._running_agents = {}
     runner._running_agents_ts = {}
     runner._pending_messages = {}
     runner._pending_approvals = {}
     runner._failed_platforms = {}
-    # Create a real UpdateManager so _update_prompt_pending works via delegation
-    runner._update_mgr = UpdateManager(runner)
-    # Also expose the dict directly for tests that set it on the runner
-    runner._update_prompt_pending = runner._update_mgr._update_prompt_pending
-    runner.session_store = MagicMock()
-    runner.session_store.get_or_create_session = MagicMock(return_value=MagicMock())
-    runner.config = MagicMock()
+    # config is accessed by _check_slash_access and quick_commands lookup;
+    # None makes policy_for_source return a disabled (allow-all) policy.
+    runner.config = None
+    # Bypass the destructive-slash confirm gate — this test exercises
+    # update-prompt interception, not the confirm prompt.
+    runner._read_user_config = lambda: {
+        "approvals": {"destructive_slash_confirm": False}
+    }
     return runner
+
+
 # ---------------------------------------------------------------------------
 # _gateway_prompt (file-based IPC in main.py)
 # ---------------------------------------------------------------------------
@@ -216,15 +219,15 @@ class TestUpdateCommandGatewayFlag:
         fake_root = tmp_path / "project"
         fake_root.mkdir()
         (fake_root / ".git").mkdir()
-        (fake_root / "gateway" / "runners").mkdir(parents=True)
-        (fake_root / "gateway" / "runners" / "update.py").touch()
-        fake_file = str(fake_root / "gateway" / "runners" / "update.py")
+        (fake_root / "gateway").mkdir()
+        (fake_root / "gateway" / "run.py").touch()
+        fake_file = str(fake_root / "gateway" / "run.py")
         hermes_home = tmp_path / "hermes"
         hermes_home.mkdir()
 
         mock_popen = MagicMock()
         with patch("gateway.run._hermes_home", hermes_home), \
-             patch("gateway.runners.update.__file__", fake_file), \
+             patch("gateway.run.__file__", fake_file), \
              patch("shutil.which", side_effect=lambda x: f"/usr/bin/{x}"), \
              patch("subprocess.Popen", mock_popen):
             result = await runner._handle_update_command(event)
@@ -256,7 +259,7 @@ class TestWatchUpdateProgress:
                    "session_key": "agent:main:telegram:dm:111"}
         (hermes_home / ".update_pending.json").write_text(json.dumps(pending))
         # Write output
-        (hermes_home / ".update_output.txt").write_text("→ Fetching updates...\n")
+        (hermes_home / ".update_output.txt").write_text("→ Fetching updates...\n", encoding="utf-8")
 
         mock_adapter = AsyncMock()
         runner.adapters = {Platform.TELEGRAM: mock_adapter}
@@ -266,7 +269,7 @@ class TestWatchUpdateProgress:
             await asyncio.sleep(0.3)
             (hermes_home / ".update_output.txt").write_text(
                 "→ Fetching updates...\n✓ Code updated!\n"
-            )
+            , encoding="utf-8")
             (hermes_home / ".update_exit_code").write_text("0")
 
         with patch("gateway.run._hermes_home", hermes_home):
@@ -325,6 +328,58 @@ class TestWatchUpdateProgress:
         assert prompt_found, f"Prompt not forwarded. Sent: {all_sent}"
         # Check session was marked as having pending prompt
         # (may be cleared by the time we check since update finished)
+
+    @pytest.mark.asyncio
+    async def test_prompt_forwarding_preserves_thread_metadata(self, tmp_path):
+        """Forwarded update prompts keep the originating thread/topic metadata."""
+        runner = _make_runner()
+        hermes_home = tmp_path / "hermes"
+        hermes_home.mkdir()
+
+        pending = {
+            "platform": "telegram",
+            "chat_id": "111",
+            "thread_id": "777",
+            "user_id": "222",
+            "session_key": "agent:main:telegram:group:111:777",
+        }
+        (hermes_home / ".update_pending.json").write_text(json.dumps(pending))
+        (hermes_home / ".update_output.txt").write_text("")
+        (hermes_home / ".update_prompt.json").write_text(json.dumps({
+            "prompt": "Restore local changes? [Y/n]",
+            "default": "y",
+            "id": "threaded-prompt",
+        }))
+
+        class _PromptCapableAdapter:
+            def __init__(self):
+                self.send = AsyncMock()
+                self.prompt_calls = AsyncMock()
+
+            async def send_update_prompt(self, **kwargs):
+                return await self.prompt_calls(**kwargs)
+
+        mock_adapter = _PromptCapableAdapter()
+        runner.adapters = {Platform.TELEGRAM: mock_adapter}
+
+        async def finish_after_prompt():
+            await asyncio.sleep(0.3)
+            (hermes_home / ".update_response").write_text("y")
+            await asyncio.sleep(0.2)
+            (hermes_home / ".update_exit_code").write_text("0")
+
+        with patch("gateway.run._hermes_home", hermes_home):
+            task = asyncio.create_task(finish_after_prompt())
+            await runner._watch_update_progress(
+                poll_interval=0.1,
+                stream_interval=0.2,
+                timeout=5.0,
+            )
+            await task
+
+        assert mock_adapter.prompt_calls.call_args.kwargs["metadata"] == {
+            "thread_id": "777"
+        }
 
     @pytest.mark.asyncio
     async def test_cleans_up_on_completion(self, tmp_path):
@@ -412,8 +467,9 @@ class TestWatchUpdateProgress:
     async def test_prompt_forwarded_only_once(self, tmp_path):
         """Regression: prompt must not be re-sent on every poll cycle.
 
-        Before the fix, the watcher never deleted .update_prompt.json after
-        forwarding, causing the same prompt to be sent every poll_interval.
+        The in-memory pending flag should suppress duplicate sends within a
+        single watcher process even when the prompt marker stays on disk for
+        restart recovery.
         """
         runner = _make_runner()
         hermes_home = tmp_path / "hermes"
@@ -458,6 +514,75 @@ class TestWatchUpdateProgress:
             f"All sends: {all_sent}"
         )
 
+    @pytest.mark.asyncio
+    async def test_prompt_is_recovered_after_watcher_restart(self, tmp_path):
+        """A forwarded prompt stays on disk until answered so a new watcher can recover it."""
+        hermes_home = tmp_path / "hermes"
+        hermes_home.mkdir()
+
+        pending = {
+            "platform": "telegram",
+            "chat_id": "111",
+            "user_id": "222",
+            "session_key": "agent:main:telegram:dm:111",
+        }
+        prompt = {
+            "prompt": "Restore local changes? [Y/n]",
+            "default": "y",
+            "id": "restart-recover",
+        }
+        (hermes_home / ".update_pending.json").write_text(json.dumps(pending))
+        (hermes_home / ".update_output.txt").write_text("")
+        (hermes_home / ".update_prompt.json").write_text(json.dumps(prompt))
+
+        runner1 = _make_runner()
+        adapter1 = AsyncMock()
+        runner1.adapters = {Platform.TELEGRAM: adapter1}
+
+        with patch("gateway.run._hermes_home", hermes_home):
+            watch1 = asyncio.create_task(
+                runner1._watch_update_progress(
+                    poll_interval=0.05,
+                    stream_interval=0.1,
+                    timeout=10.0,
+                )
+            )
+            for _ in range(40):
+                if adapter1.send.call_count:
+                    break
+                await asyncio.sleep(0.05)
+
+            assert adapter1.send.call_count == 1
+            assert (hermes_home / ".update_prompt.json").exists()
+
+            watch1.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await watch1
+
+            runner2 = _make_runner()
+            adapter2 = AsyncMock()
+            runner2.adapters = {Platform.TELEGRAM: adapter2}
+
+            async def respond_and_finish():
+                await asyncio.sleep(0.2)
+                (hermes_home / ".update_response").write_text("y")
+                await asyncio.sleep(0.2)
+                (hermes_home / ".update_exit_code").write_text("0")
+
+            finisher = asyncio.create_task(respond_and_finish())
+            await runner2._watch_update_progress(
+                poll_interval=0.05,
+                stream_interval=0.1,
+                timeout=10.0,
+            )
+            await finisher
+
+        prompt_sends = [
+            str(call) for call in adapter2.send.call_args_list
+            if "Restore local changes" in str(call)
+        ]
+        assert len(prompt_sends) == 1
+
 
 # ---------------------------------------------------------------------------
 # Message interception for update prompts
@@ -478,6 +603,7 @@ class TestUpdatePromptInterception:
         # The session key uses the full format from build_session_key
         session_key = "agent:main:telegram:dm:67890"
         runner._update_prompt_pending[session_key] = True
+        (hermes_home / ".update_prompt.json").write_text(json.dumps({"prompt": "test"}))
 
         # Mock authorization and _session_key_for_source
         runner._is_user_authorized = MagicMock(return_value=True)
@@ -491,7 +617,69 @@ class TestUpdatePromptInterception:
         response_path = hermes_home / ".update_response"
         assert response_path.exists()
         assert response_path.read_text() == "y"
+        assert not (hermes_home / ".update_prompt.json").exists()
         # Should clear the pending flag
+        assert session_key not in runner._update_prompt_pending
+
+    @pytest.mark.asyncio
+    async def test_recognized_slash_command_bypasses_pending_update_prompt(self, tmp_path):
+        """Known slash commands must dispatch normally instead of being consumed.
+
+        The update subprocess is still blocked on stdin waiting for
+        ``.update_response``, so the gateway writes a blank response to
+        unblock it (``_gateway_prompt`` returns the prompt's default on
+        empty) before falling through to normal command dispatch.
+        """
+        runner = _make_runner()
+        hermes_home = tmp_path / "hermes"
+        hermes_home.mkdir()
+
+        event = _make_event(text="/new", chat_id="67890")
+        session_key = "agent:main:telegram:dm:67890"
+        runner._update_prompt_pending[session_key] = True
+        runner._is_user_authorized = MagicMock(return_value=True)
+        runner._session_key_for_source = MagicMock(return_value=session_key)
+        runner._handle_reset_command = AsyncMock(return_value="reset ok")
+        (hermes_home / ".update_prompt.json").write_text(json.dumps({"prompt": "test"}))
+
+        with patch("gateway.run._hermes_home", hermes_home):
+            result = await runner._handle_message(event)
+
+        assert result == "reset ok"
+        runner._handle_reset_command.assert_awaited_once_with(event)
+        # .update_response was written (empty) to unblock the update
+        # subprocess; _gateway_prompt will read "", strip to "", and
+        # return the prompt's default.
+        response_path = hermes_home / ".update_response"
+        assert response_path.exists()
+        assert response_path.read_text() == ""
+        assert not (hermes_home / ".update_prompt.json").exists()
+        # Pending flag is cleared so stray future input won't be
+        # re-intercepted for a prompt that is no longer outstanding.
+        assert session_key not in runner._update_prompt_pending
+
+    @pytest.mark.asyncio
+    async def test_unrecognized_slash_command_still_consumed_as_response(self, tmp_path):
+        """Unknown /foo is written verbatim to .update_response (legacy behavior)."""
+        runner = _make_runner()
+        hermes_home = tmp_path / "hermes"
+        hermes_home.mkdir()
+
+        event = _make_event(text="/foobarbaz", chat_id="67890")
+        session_key = "agent:main:telegram:dm:67890"
+        runner._update_prompt_pending[session_key] = True
+        runner._is_user_authorized = MagicMock(return_value=True)
+        runner._session_key_for_source = MagicMock(return_value=session_key)
+        (hermes_home / ".update_prompt.json").write_text(json.dumps({"prompt": "test"}))
+
+        with patch("gateway.run._hermes_home", hermes_home):
+            result = await runner._handle_message(event)
+
+        response_path = hermes_home / ".update_response"
+        assert response_path.exists()
+        assert response_path.read_text() == "/foobarbaz"
+        assert not (hermes_home / ".update_prompt.json").exists()
+        assert "Sent" in (result or "")
         assert session_key not in runner._update_prompt_pending
 
     @pytest.mark.asyncio

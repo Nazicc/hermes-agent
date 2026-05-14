@@ -263,7 +263,7 @@ def _validate_operations(
 
             simulated = read_result.content
             for hunk in op.hunks:
-                search_lines = [l.content for l in hunk.lines if l.prefix in (' ', '-')]
+                search_lines = [l.content for l in hunk.lines if l.prefix in {' ', '-'}]
                 if not search_lines:
                     # Addition-only hunk: validate context hint uniqueness
                     if hunk.context_hint:
@@ -282,7 +282,7 @@ def _validate_operations(
                     continue
 
                 search_pattern = '\n'.join(search_lines)
-                replace_lines = [l.content for l in hunk.lines if l.prefix in (' ', '+')]
+                replace_lines = [l.content for l in hunk.lines if l.prefix in {' ', '+'}]
                 replacement = '\n'.join(replace_lines)
 
                 new_simulated, count, _strategy, match_error = fuzzy_find_and_replace(
@@ -290,10 +290,16 @@ def _validate_operations(
                 )
                 if count == 0:
                     label = f"'{hunk.context_hint}'" if hunk.context_hint else "(no hint)"
-                    errors.append(
+                    msg = (
                         f"{op.file_path}: hunk {label} not found"
                         + (f" — {match_error}" if match_error else "")
                     )
+                    try:
+                        from tools.fuzzy_match import format_no_match_hint
+                        msg += format_no_match_hint(match_error, count, search_pattern, simulated)
+                    except Exception:
+                        pass
+                    errors.append(msg)
                 else:
                     # Advance simulation so subsequent hunks validate correctly.
                     # Reuse the result from the call above — no second fuzzy run.
@@ -537,7 +543,13 @@ def _apply_update(op: PatchOperation, file_ops: Any) -> Tuple[bool, str]:
                             error = None
                 
                 if error:
-                    return False, f"Could not apply hunk: {error}"
+                    err_msg = f"Could not apply hunk: {error}"
+                    try:
+                        from tools.fuzzy_match import format_no_match_hint
+                        err_msg += format_no_match_hint(error, 0, search_pattern, new_content)
+                    except Exception:
+                        pass
+                    return False, err_msg
         else:
             # Addition-only hunk (no context or removed lines).
             # Insert at the location indicated by the context hint, or at end of file.

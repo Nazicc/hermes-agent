@@ -1,113 +1,130 @@
 ---
 name: codex
-description: "Use when delegating coding tasks to OpenAI Codex CLI — building features, refactoring, PR reviews, and batch issue fixing. NOT for: when codex CLI is not installed (use opencode instead), non-git repositories, or when opencode is preferred."
-category: general
+description: "Delegate coding to OpenAI Codex CLI (features, PRs)."
+version: 1.0.0
+author: Hermes Agent
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [Coding-Agent, Codex, OpenAI, Code-Review, Refactoring]
+    related_skills: [claude-code, hermes-agent]
 ---
 
-# Codex Skill
+# Codex CLI
 
-Delegate coding tasks to OpenAI Codex CLI agent for feature implementation, refactoring, PR reviews, and long-running autonomous sessions.
+Delegate coding tasks to [Codex](https://github.com/openai/codex) via the Hermes terminal. Codex is OpenAI's autonomous coding agent CLI.
 
-## Environment Status
+## When to use
 
-| Component | Status |
-|-----------|--------|
-| Codex CLI (OpenAI) | ❌ Not installed — `which codex` → not found |
-| OpenCode CLI | ✅ Installed v1.4.3 — use for autonomous coding on this machine |
-| Git repository | Required — Codex uses git history for context |
-| deepcode-hku | Separate pip package — research paper-to-code engine, NOT a codex replacement |
+- Building features
+- Refactoring
+- PR reviews
+- Batch issue fixing
 
-**Current environment**: OpenAI Codex CLI is not installed. Use the **`opencode`** skill instead for CLI-based autonomous coding tasks.
+Requires the codex CLI and a git repository.
 
 ## Prerequisites
 
-- OpenAI Codex CLI installed (`brew install openai-codex` or `npm install -g @openai/codex`)
-- Codex CLI authenticated (`codex --auth`)
-- Git repository (codex requires a git repo to track changes)
-- OpenAI API key configured in environment
+- Codex installed: `npm install -g @openai/codex`
+- OpenAI auth configured: either `OPENAI_API_KEY` or Codex OAuth credentials
+  from the Codex CLI login flow
+- **Must run inside a git repository** — Codex refuses to run outside one
+- Use `pty=true` in terminal calls — Codex is an interactive terminal app
 
-## Usage
+For Hermes itself, `model.provider: openai-codex` uses Hermes-managed Codex
+OAuth from `~/.hermes/auth.json` after `hermes auth add openai-codex`. For the
+standalone Codex CLI, a valid CLI OAuth session may live under
+`~/.codex/auth.json`; do not treat a missing `OPENAI_API_KEY` alone as proof
+that Codex auth is missing.
 
-### Feature Implementation
+## One-Shot Tasks
 
-bash
-# Start a new coding session
-codex --prompt "Implement the user authentication feature"
+```
+terminal(command="codex exec 'Add dark mode toggle to settings'", workdir="~/project", pty=true)
+```
 
-# With specific context
-codex --prompt "Add rate limiting to the API endpoints" --context "backend/api/v1/"
+For scratch work (Codex needs a git repo):
+```
+terminal(command="cd $(mktemp -d) && git init && codex exec 'Build a snake game in Python'", pty=true)
+```
 
+## Background Mode (Long Tasks)
 
-### Refactoring
+```
+# Start in background with PTY
+terminal(command="codex exec --full-auto 'Refactor the auth module'", workdir="~/project", background=true, pty=true)
+# Returns session_id
 
-bash
-codex --prompt "Refactor the data layer to use the repository pattern" --context "src/models/"
+# Monitor progress
+process(action="poll", session_id="<id>")
+process(action="log", session_id="<id>")
 
+# Send input if Codex asks a question
+process(action="submit", session_id="<id>", data="yes")
 
-### PR Reviews
+# Kill if needed
+process(action="kill", session_id="<id>")
+```
 
-bash
-# Review a pull request
-codex --review "https://github.com/owner/repo/pull/123"
+## Key Flags
 
-# Or use the review command directly
-codex --review
+| Flag | Effect |
+|------|--------|
+| `exec "prompt"` | One-shot execution, exits when done |
+| `--full-auto` | Sandboxed but auto-approves file changes in workspace |
+| `--yolo` | No sandbox, no approvals (fastest, most dangerous) |
 
+## PR Reviews
 
-### Batch Issue Fixes
+Clone to a temp directory for safe review:
 
-bash
-# Process multiple issues from a GitHub project
-codex --issues "--label=bug --state=open" --auto-commit
+```
+terminal(command="REVIEW=$(mktemp -d) && git clone https://github.com/user/repo.git $REVIEW && cd $REVIEW && gh pr checkout 42 && codex review --base origin/main", pty=true)
+```
 
-# Batch fix all instances of a pattern
-codex --batch "fix all instances of pattern X"
+## Parallel Issue Fixing with Worktrees
 
+```
+# Create worktrees
+terminal(command="git worktree add -b fix/issue-78 /tmp/issue-78 main", workdir="~/project")
+terminal(command="git worktree add -b fix/issue-99 /tmp/issue-99 main", workdir="~/project")
 
-### Model Selection
+# Launch Codex in each
+terminal(command="codex --yolo exec 'Fix issue #78: <description>. Commit when done.'", workdir="/tmp/issue-78", background=true, pty=true)
+terminal(command="codex --yolo exec 'Fix issue #99: <description>. Commit when done.'", workdir="/tmp/issue-99", background=true, pty=true)
 
-bash
-# Specify a different model
-codex --model claude "fix the login bug"
+# Monitor
+process(action="list")
 
+# After completion, push and create PRs
+terminal(command="cd /tmp/issue-78 && git push -u origin fix/issue-78")
+terminal(command="gh pr create --repo user/repo --head fix/issue-78 --title 'fix: ...' --body '...'")
 
-## Output
+# Cleanup
+terminal(command="git worktree remove /tmp/issue-78", workdir="~/project")
+```
 
-Codex will:
-1. Analyze the codebase context
-2. Make changes with git tracking
-3. Create commits per logical change
-4. Report summary of all changes made
+## Batch PR Reviews
 
-## Exit Codes
+```
+# Fetch all PR refs
+terminal(command="git fetch origin '+refs/pull/*/head:refs/remotes/origin/pr/*'", workdir="~/project")
 
-| Code | Meaning |
-|------|---------|
-| `0` | All tasks completed successfully |
-| `1` | Partial completion (some tasks failed) |
-| `2` | CLI error (not installed, not authenticated) |
+# Review multiple PRs in parallel
+terminal(command="codex exec 'Review PR #86. git diff origin/main...origin/pr/86'", workdir="~/project", background=true, pty=true)
+terminal(command="codex exec 'Review PR #87. git diff origin/main...origin/pr/87'", workdir="~/project", background=true, pty=true)
 
-## Distinction from Related Skills
+# Post results
+terminal(command="gh pr comment 86 --body '<review>'", workdir="~/project")
+```
 
-| Skill | What it is | When to use |
-|-------|------------|-------------|
-| `codex` | OpenAI Codex CLI (NOT installed on this machine) | Only if Codex CLI is available in target environment |
-| `opencode` | OpenCode CLI agent v1.4.3 (INSTALLED) | Primary choice for autonomous coding on this machine |
-| `deepcode-hku` | DeepCode Research Engine (pip package) | Research paper to code workflows, not general coding delegation |
+## Rules
 
-## Key Differences: Codex vs OpenCode
-
-| Feature | Codex | OpenCode |
-|---------|-------|----------|
-| Provider | OpenAI | Various (SambaNova, etc.) |
-| Context window | Limited | Extended (200K+ tokens) |
-| Multi-file projects | Basic | Advanced |
-| This machine | NOT INSTALLED | AVAILABLE |
-
-## Important Notes
-
-- **Requires git repository** — Codex uses git history for context
-- **Requires OpenAI API key** configured in environment
-- Use `--model` flag to specify model (e.g., `--model claude`)
-- For research paper implementation, use `deepcode-hku` directly — it is an HKU research paper-to-code engine with its own FastAPI backend, NOT a codex replacement
-- Since codex is not installed on this machine, this skill serves as documentation only
+1. **Always use `pty=true`** — Codex is an interactive terminal app and hangs without a PTY
+2. **Git repo required** — Codex won't run outside a git directory. Use `mktemp -d && git init` for scratch
+3. **Use `exec` for one-shots** — `codex exec "prompt"` runs and exits cleanly
+4. **`--full-auto` for building** — auto-approves changes within the sandbox
+5. **Background for long tasks** — use `background=true` and monitor with `process` tool
+6. **Don't interfere** — monitor with `poll`/`log`, be patient with long-running tasks
+7. **Parallel is fine** — run multiple Codex processes at once for batch work

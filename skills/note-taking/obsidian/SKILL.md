@@ -1,129 +1,61 @@
 ---
 name: obsidian
-description: "Read, search, and create notes in the Obsidian vault. Trigger signals: user asks to read, search, create, or update an Obsidian note, open a vault, manage vault settings, work with frontmatter, use daily notes, query with Dataview, or interact with Obsidian plugins. NOT for: non-Obsidian note-taking, spanning across multiple vaults without specifying which, or when the Obsidian app UI is more efficient."
-category: general
+description: Read, search, create, and edit notes in the Obsidian vault.
+platforms: [linux, macos, windows]
 ---
 
-## R — Vault Discovery
+# Obsidian Vault
 
-Before any read/write, determine the vault path:
+Use this skill for filesystem-first Obsidian vault work: reading notes, listing notes, searching note files, creating notes, appending content, and adding wikilinks.
 
-1. **User-provided path** — if the user specifies a vault path, use it directly.
-2. **Common macOS locations** (in order):
-   - `~/Library/Containers/pro.shinyfrog.bear/Data/Documents/Bear/Backups/obsidian` — unlikely, verify exists
-   - `~/Obsidian/`
-   - `~/obsidian/`
-   - `~/.obsidian/vaults/`
-   - `~/Documents/Obsidian/`
-3. **MCP connection** — if using `obsidian_tool` MCP tool, the vault must be open in the Obsidian app.
-4. **Validate vault** — a valid Obsidian vault contains `.obsidian/` config directory at root.
+## Vault path
 
-## I — Core Operations
+Use a known or resolved vault path before calling file tools.
 
-**MCP Tools (preferred when available):**
+The documented vault-path convention is the `OBSIDIAN_VAULT_PATH` environment variable, for example from `~/.hermes/.env`. If it is unset, use `~/Documents/Obsidian Vault`.
 
-| Operation | Tool | Notes |
-|-----------|------|-------|
-| Read note | `read_note` | By path or vault-relative path |
-| Search notes | `search_notes` | Full-text search within vault |
-| Create note | `create_note` | Supports frontmatter, tags |
-| Update note | `append_to_note` | Appends; use read-then-write for full replacement |
-| Daily notes | `get_daily_note` | Auto-creates if missing |
-| Dataview query | Requires Dataview plugin enabled | Use `search_notes` as fallback |
+File tools do not expand shell variables. Do not pass paths containing `$OBSIDIAN_VAULT_PATH` to `read_file`, `write_file`, `patch`, or `search_files`; resolve the vault path first and pass a concrete absolute path. Vault paths may contain spaces, which is another reason to prefer file tools over shell commands.
 
-**Bash Fallback (when MCP unavailable):**
+If the vault path is unknown, `terminal` is acceptable for resolving `OBSIDIAN_VAULT_PATH` or checking whether the fallback path exists. Once the path is known, switch back to file tools.
 
-bash
-# Read a note
-cat "${VAULT}/folder/note-name.md"
+## Read a note
 
-# Search notes by content
-grep -r "query" "${VAULT}/" --include="*.md" -l
+Use `read_file` with the resolved absolute path to the note. Prefer this over `cat` because it provides line numbers and pagination.
 
-# Search notes by filename
-find "${VAULT}/" -name "*query*.md"
+## List notes
 
-# Create note with frontmatter
-cat > "${VAULT}/folder/new-note.md" << 'EOF'
----
-title: New Note
-created: 2025-01-15
-tags: [tag1, tag2]
----
+Use `search_files` with `target: "files"` and the resolved vault path. Prefer this over `find` or `ls`.
 
-# New Note
+- To list all markdown notes, use `pattern: "*.md"` under the vault path.
+- To list a subfolder, search under that subfolder's absolute path.
 
-Content here.
-EOF
+## Search
 
+Use `search_files` for both filename and content searches. Prefer this over `grep`, `find`, or `ls`.
 
-## A1 — Common Triggers
+- For filenames, use `search_files` with `target: "files"` and a filename `pattern`.
+- For note contents, use `search_files` with `target: "content"`, the content regex as `pattern`, and `file_glob: "*.md"` when you want to restrict matches to markdown notes.
 
-- "read my notes about X"
-- "search the vault for Y"
-- "create a new note called Z"
-- "add frontmatter to this note"
-- "open daily note"
-- "what's in my vault?"
+## Create a note
 
-## A2 — Anti-Triggers
+Use `write_file` with the resolved absolute path and the full markdown content. Prefer this over shell heredocs or `echo` because it avoids shell quoting issues and returns structured results.
 
-- Never delete notes without explicit user confirmation
-- Avoid spanning vaults — ask user to specify which vault
-- Dataview queries require the plugin; fall back to `search_notes` if unavailable
+## Append to a note
 
-## Vault Structure Conventions
+Prefer a native file-tool workflow when it is not awkward:
 
+- Read the target note with `read_file`.
+- Use `patch` for an anchored append when there is stable context, such as adding a section after an existing heading or appending before a known trailing block.
+- Use `write_file` when rewriting the whole note is clearer than constructing a fragile patch.
 
-vault/
-├── .obsidian/           # config, plugins, workspace.json
-├── <folder>/            # user folders
-│   └── *.md             # notes (primary content)
-├── _assets/             # local attachments (optional)
-├── _daily/              # daily notes (if daily-plugin enabled)
-└── _templates/          # Templater/templates (if templater-plugin enabled)
+For an anchored append with `patch`, replace the anchor with the anchor plus the new content.
 
+For a simple append with no stable context, `terminal` is acceptable if it is the clearest safe option.
 
-Daily notes follow `${VAULT}/_daily/YYYY-MM-DD.md` or `${VAULT}/daily/YYYY-MM-DD.md`.
+## Targeted edits
 
-## Environment Quirks
+Use `patch` for focused note changes when the current content gives you stable context. Prefer this over shell text rewriting.
 
-- **Obsidian URIs**: `obsidian://` URLs can open vaults, notes, and search from CLI:
-  `open "obsidian://open?vault=${VAULT_NAME}&file=${NOTE_NAME}"`
-- **Frontmatter**: Always use `---` fences. YAML only. Dates in `YYYY-MM-DD` or ISO 8601.
-- **Dataview plugin**: Notes must use inline fields (e.g., `due:: 2025-01-20`) or explicit YAML frontmatter. The Dataview plugin must be enabled in `.obsidian/plugins/`.
-- **Vault-relative paths**: Obsidian links use `/` as separator. `[[folder/note]]` links relative to current file's folder.
-- **Attachments**: Images stored in `_assets/` or same folder. `![[image.png]]` syntax for embedding.
+## Wikilinks
 
-## B — Batch Operations
-
-bash
-# Create multiple notes from a template
-for name in "note-a" "note-b" "note-c"; do
-  cat > "${VAULT}/${name}.md" << EOF
----
-title: ${name}
-created: $(date +%Y-%m-%d)
-tags: [auto]
----
-
-# ${name}
-EOF
-done
-
-# Tag-based search
-grep -r "^tags:.*\[${TAG}\]\|^tags:.*${TAG}" "${VAULT}/" --include="*.md" -l
-
-
-## E — Error Handling
-
-| Symptom | Likely Cause | Fix |
-|---------|--------------|-----|
-| `No such file` on vault path | Vault not found at expected location | Run detection flow; ask user for path |
-| Empty frontmatter parsed | `.obsidian/` config missing | Not a valid vault; skip or warn |
-| `obsidian://` URI not working | Vault name mismatch | Use exact vault name as shown in app |
-| MCP connection fails | Vault not open in Obsidian app | Prompt user to open Obsidian first |
-| Vault path contains spaces | Path not quoted | Use quoted path strings |
-| Large vault (>10k notes) | Performance degradation | Prefer `search_notes` over recursive reads |
-| Concurrent edits | Multiple instances running | Obsidian MCP is single-user; warn if multiple instances |
-
+Obsidian links notes with `[[Note Name]]` syntax. When creating notes, use these to link related content.

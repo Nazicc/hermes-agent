@@ -14,6 +14,7 @@ from difflib import unified_diff
 from pathlib import Path
 
 from utils import safe_json_loads
+from agent.tool_result_classification import file_mutation_result_landed
 
 # ANSI escape codes for coloring tool failure indicators
 _RED = "\033[31m"
@@ -225,9 +226,11 @@ def build_tool_preview(tool_name: str, args: dict, max_len: int | None = None) -
             content = _oneline(args.get("content", ""))
             return f"+{target}: \"{content[:25]}{'...' if len(content) > 25 else ''}\""
         elif action == "replace":
-            return f"~{target}: \"{_oneline(args.get('old_text', '')[:20])}\""
+            old = _oneline(args.get("old_text") or "") or "<missing old_text>"
+            return f"~{target}: \"{old[:20]}\""
         elif action == "remove":
-            return f"-{target}: \"{_oneline(args.get('old_text', '')[:20])}\""
+            old = _oneline(args.get("old_text") or "") or "<missing old_text>"
+            return f"-{target}: \"{old[:20]}\""
         return action
 
     if tool_name == "send_message":
@@ -808,6 +811,8 @@ def _detect_tool_failure(tool_name: str, result: str | None) -> tuple[bool, str]
     """
     if result is None:
         return False, ""
+    if file_mutation_result_landed(tool_name, result):
+        return False, ""
 
     if tool_name == "terminal":
         data = safe_json_loads(result)
@@ -825,6 +830,10 @@ def _detect_tool_failure(tool_name: str, result: str | None) -> tuple[bool, str]
                 return True, " [full]"
 
     # Generic heuristic for non-terminal tools
+    # Multimodal tool results (dicts with _multimodal=True) are not strings —
+    # treat them as successes since failures would be JSON-encoded strings.
+    if not isinstance(result, str):
+        return False, ""
     lower = result[:500].lower()
     if '"error"' in lower or '"failed"' in lower or result.startswith("Error"):
         return True, " [error]"
@@ -850,13 +859,15 @@ def get_cute_tool_message(
         s = str(s)
         if _tool_preview_max_len == 0:
             return s  # no limit
-        return (s[:n-3] + "...") if len(s) > n else s
+        limit = _tool_preview_max_len
+        return (s[:limit-3] + "...") if len(s) > limit else s
 
     def _path(p, n=35):
         p = str(p)
         if _tool_preview_max_len == 0:
             return p  # no limit
-        return ("..." + p[-(n-3):]) if len(p) > n else p
+        limit = _tool_preview_max_len
+        return ("..." + p[-(limit-3):]) if len(p) > limit else p
 
     def _wrap(line: str) -> str:
         """Apply skin tool prefix and failure suffix."""
@@ -939,9 +950,13 @@ def get_cute_tool_message(
         if action == "add":
             return _wrap(f"┊ 🧠 memory    +{target}: \"{_trunc(args.get('content', ''), 30)}\"  {dur}")
         elif action == "replace":
-            return _wrap(f"┊ 🧠 memory    ~{target}: \"{_trunc(args.get('old_text', ''), 20)}\"  {dur}")
+            old = args.get("old_text") or ""
+            old = old if old else "<missing old_text>"
+            return _wrap(f"┊ 🧠 memory    ~{target}: \"{_trunc(old, 20)}\"  {dur}")
         elif action == "remove":
-            return _wrap(f"┊ 🧠 memory    -{target}: \"{_trunc(args.get('old_text', ''), 20)}\"  {dur}")
+            old = args.get("old_text") or ""
+            old = old if old else "<missing old_text>"
+            return _wrap(f"┊ 🧠 memory    -{target}: \"{_trunc(old, 20)}\"  {dur}")
         return _wrap(f"┊ 🧠 memory    {action}  {dur}")
     if tool_name == "skills_list":
         return _wrap(f"┊ 📚 skills    list {args.get('category', 'all')}  {dur}")

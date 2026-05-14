@@ -1,3 +1,4 @@
+.DS_Store
 /venv/
 /_pycache/
 *.pyc*
@@ -54,6 +55,11 @@ environments/benchmarks/evals/
 # Web UI build output
 hermes_cli/web_dist/
 
+# Web UI assets — synced from @nous-research/ui at build time via
+# `npm run sync-assets` (see web/package.json).
+web/public/fonts/
+web/public/ds-assets/
+
 # Release script temp files
 .release_notes.md
 mini-swe-agent/
@@ -63,58 +69,4 @@ mini-swe-agent/
 .nix-stamps/
 result
 website/static/api/skills-index.json
-evolver/
-hermes-agent-self-evolution/
-*.bak
-# ═══ Runtime state (never track) ═══
-.beads/
-.update_check/
-gateway.pid
-gateway_state.json
-processes.json
-response_store.db
-response_store.db-shm
-response_store.db-wal
-feishu_seen_message_ids.json
-auth.json
-auth.lock
-channel_directory.json
-models_dev_cache.json
-.skills_prompt_snapshot.json
-
-# ═══ Runtime directories ═══
-mcp-venv/
-openviking-data/
-cache/
-memories/
-cron/output/
-deer-flow-repo/
-.hermes_archive/
-.skillclaw_backups/
-platforms/
-bin/
-# ═══ More runtime ═══
-.githooks/
-cron/.tick.lock
-cron/jobs.json
-hermes-agent/
-launchd/com.hermes.deerflow-mcp.plist.disabled
-launchd/launchd/
-sessions/
-simplemem_evolution/
-sirchmunk-data/
-skillclaw-health.sh
-*.disabled
-# ═══ Skills runtime dirs (gitlinks unpacked) ═══
-skills/*/
-skills/.bundled_manifest
-
-# ═══ Remaining runtime state ═══
-state.db
-state.db-shm
-state.db-wal
-.update_check/
-
-# ═══ Final runtime ═══
-skills/skill_stats.json
-.update_check
+models-dev-upstream/

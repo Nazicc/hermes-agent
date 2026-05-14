@@ -1,218 +1,367 @@
 ---
 name: systematic-debugging
-description: "Use when encountering any bug, test failure, or unexpected behavior. 4-phase root cause investigation: Observe → Hypothesize → Test → Iterate. CRITICAL: No fixes without understanding the problem first. Premature fixes create technical debt. Covers shell scripts, Python, and general debugging. Shell-specific: use `bash -x` traces and understand `set -e` + `[ $? -eq 0 ]` anti-patterns."
-category: general
+description: "4-phase root cause debugging: understand bugs before fixing."
+version: 1.1.0
+author: Hermes Agent (adapted from obra/superpowers)
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [debugging, troubleshooting, problem-solving, root-cause, investigation]
+    related_skills: [test-driven-development, writing-plans, subagent-driven-development]
 ---
 
 # Systematic Debugging
 
-4-phase root cause investigation. **No fixes without understanding the problem first.** Apply the scientific method to code.
+## Overview
+
+Random fixes waste time and create new bugs. Quick patches mask underlying issues.
+
+**Core principle:** ALWAYS find root cause before attempting fixes. Symptom fixes are failure.
+
+**Violating the letter of this process is violating the spirit of debugging.**
+
+## The Iron Law
+
+```
+NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST
+```
+
+If you haven't completed Phase 1, you cannot propose fixes.
 
 ## When to Use
 
-Activate when:
-- A test fails (unit, integration, e2e)
-- A tool call returns an error or unexpected output
-- The agent produces incorrect or incomplete results
-- Any `Error:`, `Exception:`, `Traceback:`, or non-zero exit code appears
-- Behavior diverges from the spec or user's intent
-- Before writing any fix, hotpatch, or workaround
-- When the agent is about to guess at a solution
+Use for ANY technical issue:
+- Test failures
+- Bugs in production
+- Unexpected behavior
+- Performance problems
+- Build failures
+- Integration issues
+
+**Use this ESPECIALLY when:**
+- Under time pressure (emergencies make guessing tempting)
+- "Just one quick fix" seems obvious
+- You've already tried multiple fixes
+- Previous fix didn't work
+- You don't fully understand the issue
+
+**Don't skip when:**
+- Issue seems simple (simple bugs have root causes too)
+- You're in a hurry (rushing guarantees rework)
+- Someone wants it fixed NOW (systematic is faster than thrashing)
+
+## The Four Phases
+
+You MUST complete each phase before proceeding to the next.
 
 ---
 
-## Phase 1: Observe
+## Phase 1: Root Cause Investigation
 
-**Collect facts, not assumptions.** Do NOT guess, do NOT fix.
+**BEFORE attempting ANY fix:**
 
-**What to collect:**
-- The exact error message or unexpected output
-- The command/context that triggered it
-- Relevant log entries (`~/.skillclaw/health.log`, stderr, stdout)
-- What changed recently (dependency updates, config changes, new commits)
-- Exit codes and stack traces
-- What was the last working state? What changed?
+### 1. Read Error Messages Carefully
 
-**Commands:**
-bash
-# Check recent logs
-tail -50 ~/.skillclaw/health.log
+- Don't skip past errors or warnings
+- They often contain the exact solution
+- Read stack traces completely
+- Note line numbers, file paths, error codes
 
-# Check git diff for recent changes
-git -C ~/.hermes/hermes-agent log --oneline -5
-git -C ~/.hermes/hermes-agent diff HEAD~1
+**Action:** Use `read_file` on the relevant source files. Use `search_files` to find the error string in the codebase.
 
-# For shell scripts: use bash -x for maximum verbosity
-bash -x script.sh 2>&1 | grep -v "^++"
+### 2. Reproduce Consistently
 
-# Check exit codes explicitly after critical commands
-cmd; echo "exit: $?"
+- Can you trigger it reliably?
+- What are the exact steps?
+- Does it happen every time?
+- If not reproducible → gather more data, don't guess
 
+**Action:** Use the `terminal` tool to run the failing test or trigger the bug:
 
-**Shell-specific checks:**
-- Check file permissions, symlinks, path variables
-- For shell scripts: check `set -e` behavior — script may exit early without error message
-- **CRITICAL shell anti-pattern**: `set -e` + `[ $? -eq 0 ]` always exits because `$?` is the exit code of `[`, which is always 0 or 1 (the equality check itself can fail → `[` exits 1 → `set -e` catches it → script exits). Use a sentinel variable instead: `SKIP=0; python3 ...; [ $? -eq 0 ] && SKIP=1; [ $SKIP -eq 1 ] && exit 0`
+```bash
+# Run specific failing test
+pytest tests/test_module.py::test_name -v
 
-**Output of Phase 1:** A concise list of facts (not interpretations).
+# Run with verbose output
+pytest tests/test_module.py -v --tb=long
+```
 
----
+### 3. Check Recent Changes
 
-## Phase 2: Hypothesize
+- What changed that could cause this?
+- Git diff, recent commits
+- New dependencies, config changes
 
-**State the root cause as a testable claim.** Each hypothesis must be falsifiable.
+**Action:**
 
-**Rules:**
-- List ALL plausible hypotheses before choosing one
-- Prefer the simplest explanation that fits all facts
-- Distinguish symptoms from root causes
-- **Never say "I'll try X and see"** — first understand why X would work
-- For shell: Is it `set -e`? Wrong path? Permission? Stale state?
+```bash
+# Recent commits
+git log --oneline -10
 
-**Hypothesis template:**
+# Uncommitted changes
+git diff
 
-H1: <cause> → <effect>
-  Evidence supporting: ...
-  Evidence against: ...
+# Changes in specific file
+git log -p --follow src/problematic_file.py | head -100
+```
 
-H2: <alternative cause> → <effect>
-  Evidence supporting: ...
-  Evidence against: ...
+### 4. Gather Evidence in Multi-Component Systems
 
+**WHEN system has multiple components (API → service → database, CI → build → deploy):**
 
-**Common root causes (check in order):**
-1. Environment mismatch (wrong port, missing env var, network)
-2. API/contract change (endpoint, payload schema, auth)
-3. Race condition or ordering dependency
-4. Missing resource or dependency not installed
-5. Configuration error (typo, wrong path)
-6. Logic error in the code itself
+**BEFORE proposing fixes, add diagnostic instrumentation:**
 
----
+For EACH component boundary:
+- Log what data enters the component
+- Log what data exits the component
+- Verify environment/config propagation
+- Check state at each layer
 
-## Phase 3: Test
+Run once to gather evidence showing WHERE it breaks.
+THEN analyze evidence to identify the failing component.
+THEN investigate that specific component.
 
-**Verify the hypothesis with a targeted test.** One variable at a time.
+### 5. Trace Data Flow
 
-**Test patterns:**
-bash
-# Test a specific tool/function
-hermes test --tool <name> --case <case-name>
+**WHEN error is deep in the call stack:**
 
-# Verify environment state
-echo $PORT && curl http://127.0.0.1:$PORT/healthz
+- Where does the bad value originate?
+- What called this function with the bad value?
+- Keep tracing upstream until you find the source
+- Fix at the source, not at the symptom
 
-# Check if resource exists
-ls -la ~/.hermes/<path>
+**Action:** Use `search_files` to trace references:
 
-# Run the minimal reproduction
-python3 -c "import <module>; <module>.<func>()"
+```python
+# Find where the function is called
+search_files("function_name(", path="src/", file_glob="*.py")
 
-# For shell: syntax check before running
-bash -n script.sh
+# Find where the variable is set
+search_files("variable_name\\s*=", path="src/", file_glob="*.py")
+```
 
+### Phase 1 Completion Checklist
 
-**Principles:**
-- Test the specific hypothesis, not multiple things
-- If the test passes → hypothesis likely correct, move to Fix
-- If the test fails → hypothesis wrong, return to Phase 2
-- Verify fix doesn't break other paths
-- Run with dry-run flags if available
+- [ ] Error messages fully read and understood
+- [ ] Issue reproduced consistently
+- [ ] Recent changes identified and reviewed
+- [ ] Evidence gathered (logs, state, data flow)
+- [ ] Problem isolated to specific component/code
+- [ ] Root cause hypothesis formed
+
+**STOP:** Do not proceed to Phase 2 until you understand WHY it's happening.
 
 ---
 
-## Phase 4: Iterate
+## Phase 2: Pattern Analysis
 
-**Refine based on test results.** Once root cause is confirmed, fix it and verify.
+**Find the pattern before fixing:**
 
-**Fixing rules:**
-- Fix the root cause, not the symptom
-- Write a regression test to prevent recurrence
-- If the fix is non-trivial, use incremental-implementation skill
-- After fix: re-run the original failing case, then run full test suite
+### 1. Find Working Examples
 
-**Verification checklist:**
-- [ ] Original error is gone
-- [ ] Related functionality still works
-- [ ] Regression test passes
-- [ ] No new errors in health.log
+- Locate similar working code in the same codebase
+- What works that's similar to what's broken?
 
-**If hypothesis was wrong:** Return to Phase 2 with new evidence.
+**Action:** Use `search_files` to find comparable patterns:
 
-**Cleanup:** Document what you learned. Clean up any test/temporary files.
+```python
+search_files("similar_pattern", path="src/", file_glob="*.py")
+```
 
----
+### 2. Compare Against References
 
-## Shell Script Checklist
+- If implementing a pattern, read the reference implementation COMPLETELY
+- Don't skim — read every line
+- Understand the pattern fully before applying
 
-Before declaring a shell bug fixed, verify:
-- [ ] `bash -n` (syntax check) passes
-- [ ] Script runs to completion without `set -e` early exit
-- [ ] Exit codes are checked explicitly after critical commands
-- [ ] No `[ $? -eq 0 ]` pattern after `set -e` (use sentinel variable)
-- [ ] Paths are absolute, not relative to current directory
+### 3. Identify Differences
 
----
+- What's different between working and broken?
+- List every difference, however small
+- Don't assume "that can't matter"
 
-## Anti-Patterns
+### 4. Understand Dependencies
 
-1. **Don't fix without understanding** — You WILL create bugs
-2. **`set -e` + `[ $? -eq 0 ]`** — `$?` is the exit code of `[`, not the previous command. Use sentinel variable instead.
-3. **Silent failure** — commands that fail without error messages under `set -e`
-4. **Don't restart services blindly** — Observe first, then restart as a targeted test
-5. **Don't assume API stability** — APIs change. Check the actual contract
-6. **Stale state** — script reads cached files or environment from previous runs
-7. **Path dependency** — assumes current working directory is correct
+- What other components does this need?
+- What settings, config, environment?
+- What assumptions does it make?
 
 ---
 
-## Debugging the Hermes System Specifically
+## Phase 3: Hypothesis and Testing
 
-### SkillClaw proxy issues
-bash
-# Check SkillClaw health
-curl -s http://127.0.0.1:30000/healthz
-# Expected: {"status":"ok"} or {"healthy":true}
+**Scientific method:**
 
-# Restart if unhealthy
-kill $(cat ~/.skillclaw/gateway.pid 2>/dev/null) 2>/dev/null
-# Then restart the gateway
+### 1. Form a Single Hypothesis
 
+- State clearly: "I think X is the root cause because Y"
+- Write it down
+- Be specific, not vague
 
-### Hermes routing issues
-bash
-# Check hermes config
-cat ~/.hermes/hermes-agent/config.yaml 2>/dev/null | grep -A5 "hermes:"
+### 2. Test Minimally
 
-# Verify provider settings
-# Correct: provider=custom, base_url=http://127.0.0.1:30000/v1
+- Make the SMALLEST possible change to test the hypothesis
+- One variable at a time
+- Don't fix multiple things at once
 
+### 3. Verify Before Continuing
 
-### MCP tool errors
-bash
-# Check MCP server logs
-tail -30 ~/.hermes/logs/mcp.log
+- Did it work? → Phase 4
+- Didn't work? → Form NEW hypothesis
+- DON'T add more fixes on top
 
-# Test MCP connection
-python3 -c "from mcp.client import Client; c = Client('http://127.0.0.1:3001'); print(c.ping())"
+### 4. When You Don't Know
 
-
-### Skill injection failures
-bash
-# Check skills index
-ls ~/.hermes/skills/skills/
-
-# Rebuild index
-rm -f ~/.hermes/.skills_prompt_snapshot.json
-
-# Verify skill file exists
-cat ~/.hermes/skills/skills/<skill-name>/SKILL.md | head -20
-
+- Say "I don't understand X"
+- Don't pretend to know
+- Ask the user for help
+- Research more
 
 ---
 
-## Related Skills
+## Phase 4: Implementation
 
-- `test-driven-development` — Write tests BEFORE fixing (Phase 3 companion)
-- `incremental-implementation` — For complex fixes, break them down
-- `spec-driven-development` — If bug reveals missing spec, use this first
+**Fix the root cause, not the symptom:**
+
+### 1. Create Failing Test Case
+
+- Simplest possible reproduction
+- Automated test if possible
+- MUST have before fixing
+- Use the `test-driven-development` skill
+
+### 2. Implement Single Fix
+
+- Address the root cause identified
+- ONE change at a time
+- No "while I'm here" improvements
+- No bundled refactoring
+
+### 3. Verify Fix
+
+```bash
+# Run the specific regression test
+pytest tests/test_module.py::test_regression -v
+
+# Run full suite — no regressions
+pytest tests/ -q
+```
+
+### 4. If Fix Doesn't Work — The Rule of Three
+
+- **STOP.**
+- Count: How many fixes have you tried?
+- If < 3: Return to Phase 1, re-analyze with new information
+- **If ≥ 3: STOP and question the architecture (step 5 below)**
+- DON'T attempt Fix #4 without architectural discussion
+
+### 5. If 3+ Fixes Failed: Question Architecture
+
+**Pattern indicating an architectural problem:**
+- Each fix reveals new shared state/coupling in a different place
+- Fixes require "massive refactoring" to implement
+- Each fix creates new symptoms elsewhere
+
+**STOP and question fundamentals:**
+- Is this pattern fundamentally sound?
+- Are we "sticking with it through sheer inertia"?
+- Should we refactor the architecture vs. continue fixing symptoms?
+
+**Discuss with the user before attempting more fixes.**
+
+This is NOT a failed hypothesis — this is a wrong architecture.
+
+---
+
+## Red Flags — STOP and Follow Process
+
+If you catch yourself thinking:
+- "Quick fix for now, investigate later"
+- "Just try changing X and see if it works"
+- "Add multiple changes, run tests"
+- "Skip the test, I'll manually verify"
+- "It's probably X, let me fix that"
+- "I don't fully understand but this might work"
+- "Pattern says X but I'll adapt it differently"
+- "Here are the main problems: [lists fixes without investigation]"
+- Proposing solutions before tracing data flow
+- **"One more fix attempt" (when already tried 2+)**
+- **Each fix reveals a new problem in a different place**
+
+**ALL of these mean: STOP. Return to Phase 1.**
+
+**If 3+ fixes failed:** Question the architecture (Phase 4 step 5).
+
+## Common Rationalizations
+
+| Excuse | Reality |
+|--------|---------|
+| "Issue is simple, don't need process" | Simple issues have root causes too. Process is fast for simple bugs. |
+| "Emergency, no time for process" | Systematic debugging is FASTER than guess-and-check thrashing. |
+| "Just try this first, then investigate" | First fix sets the pattern. Do it right from the start. |
+| "I'll write test after confirming fix works" | Untested fixes don't stick. Test first proves it. |
+| "Multiple fixes at once saves time" | Can't isolate what worked. Causes new bugs. |
+| "Reference too long, I'll adapt the pattern" | Partial understanding guarantees bugs. Read it completely. |
+| "I see the problem, let me fix it" | Seeing symptoms ≠ understanding root cause. |
+| "One more fix attempt" (after 2+ failures) | 3+ failures = architectural problem. Question the pattern, don't fix again. |
+
+## Quick Reference
+
+| Phase | Key Activities | Success Criteria |
+|-------|---------------|------------------|
+| **1. Root Cause** | Read errors, reproduce, check changes, gather evidence, trace data flow | Understand WHAT and WHY |
+| **2. Pattern** | Find working examples, compare, identify differences | Know what's different |
+| **3. Hypothesis** | Form theory, test minimally, one variable at a time | Confirmed or new hypothesis |
+| **4. Implementation** | Create regression test, fix root cause, verify | Bug resolved, all tests pass |
+
+## Hermes Agent Integration
+
+### Investigation Tools
+
+Use these Hermes tools during Phase 1:
+
+- **`search_files`** — Find error strings, trace function calls, locate patterns
+- **`read_file`** — Read source code with line numbers for precise analysis
+- **`terminal`** — Run tests, check git history, reproduce bugs
+- **`web_search`/`web_extract`** — Research error messages, library docs
+
+### With delegate_task
+
+For complex multi-component debugging, dispatch investigation subagents:
+
+```python
+delegate_task(
+    goal="Investigate why [specific test/behavior] fails",
+    context="""
+    Follow systematic-debugging skill:
+    1. Read the error message carefully
+    2. Reproduce the issue
+    3. Trace the data flow to find root cause
+    4. Report findings — do NOT fix yet
+
+    Error: [paste full error]
+    File: [path to failing code]
+    Test command: [exact command]
+    """,
+    toolsets=['terminal', 'file']
+)
+```
+
+### With test-driven-development
+
+When fixing bugs:
+1. Write a test that reproduces the bug (RED)
+2. Debug systematically to find root cause
+3. Fix the root cause (GREEN)
+4. The test proves the fix and prevents regression
+
+## Real-World Impact
+
+From debugging sessions:
+- Systematic approach: 15-30 minutes to fix
+- Random fixes approach: 2-3 hours of thrashing
+- First-time fix rate: 95% vs 40%
+- New bugs introduced: Near zero vs common
+
+**No shortcuts. No guessing. Systematic always wins.**

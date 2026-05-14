@@ -1,107 +1,367 @@
 ---
 name: github-pr-workflow
-description: "Full pull request lifecycle — create branches, commit changes, open PRs, monitor CI status, auto-fix failures, and merge. Works with gh CLI or falls back to git + GitHub REST API via curl. Trigger signals: user asks to create a PR, open a pull request, merge code, check CI status, fix CI failures, sync branches. NOT for: GitHub authentication setup (use github-auth), repository creation/forking/management (use github-repo-management), code review without PR context (use github-code-review)."
-category: general
+description: "GitHub PR lifecycle: branch, commit, open, CI, merge."
+version: 1.1.0
+author: Hermes Agent
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [GitHub, Pull-Requests, CI/CD, Git, Automation, Merge]
+    related_skills: [github-auth, github-code-review]
 ---
 
-## GitHub PR Workflow
+# GitHub Pull Request Workflow
 
-### Prerequisites
+Complete guide for managing the PR lifecycle. Each section shows the `gh` way first, then the `git` + `curl` fallback for machines without `gh`.
 
-**gh CLI (preferred):** `brew install gh` or `npm install -g gh`
-**Fallback:** `git`, `curl`, `jq`, and `GH_TOKEN` env var set to a GitHub Personal Access Token
+## Prerequisites
 
-### Detection Flow
+- Authenticated with GitHub (see `github-auth` skill)
+- Inside a git repository with a GitHub remote
 
+### Quick Auth Detection
 
-if gh is installed and gh auth status succeeds:
-    use gh CLI for all operations
-else:
-    use git + GitHub REST API via curl
-    require GH_TOKEN env var
-    require REPO_OWNER and REPO_NAME env vars (or extract from git remote)
+```bash
+# Determine which method to use throughout this workflow
+if command -v gh &>/dev/null && gh auth status &>/dev/null; then
+  AUTH="gh"
+else
+  AUTH="git"
+  # Ensure we have a token for API calls
+  if [ -z "$GITHUB_TOKEN" ]; then
+    if [ -f ~/.hermes/.env ] && grep -q "^GITHUB_TOKEN=" ~/.hermes/.env; then
+      GITHUB_TOKEN=$(grep "^GITHUB_TOKEN=" ~/.hermes/.env | head -1 | cut -d= -f2 | tr -d '\n\r')
+    elif grep -q "github.com" ~/.git-credentials 2>/dev/null; then
+      GITHUB_TOKEN=$(grep "github.com" ~/.git-credentials 2>/dev/null | head -1 | sed 's|https://[^:]*:\([^@]*\)@.*|\1|')
+    fi
+  fi
+fi
+echo "Using: $AUTH"
+```
 
+### Extracting Owner/Repo from the Git Remote
 
-## Branch & Commit Workflow
+Many `curl` commands need `owner/repo`. Extract it from the git remote:
 
-### Via gh CLI
+```bash
+# Works for both HTTPS and SSH remote URLs
+REMOTE_URL=$(git remote get-url origin)
+OWNER_REPO=$(echo "$REMOTE_URL" | sed -E 's|.*github\.com[:/]||; s|\.git$||')
+OWNER=$(echo "$OWNER_REPO" | cut -d/ -f1)
+REPO=$(echo "$OWNER_REPO" | cut -d/ -f2)
+echo "Owner: $OWNER, Repo: $REPO"
+```
 
-bash
-# Create a branch and commit
-BRANCH="feat/$(date +%Y%m%d%H%M%S)"
-git checkout -b $BRANCH
-git add . && git commit -m "..."
-git push -u origin $BRANCH
+---
 
-# Create PR
-gh pr create --title "<title>" --body "<description>" --base <target-branch>
-gh pr view --web  # open in browser
+## 1. Branch Creation
 
+This part is pure `git` — identical either way:
 
-### Via curl fallback
+```bash
+# Make sure you're up to date
+git fetch origin
+git checkout main && git pull origin main
 
-bash
-# Detect repo from git remote
-REPO=$(git remote get-url origin | sed 's|.*github.com/||' | sed 's|\.git$||')
-OWNER=$(echo $REPO | cut -d/ -f1)
-REPO_NAME=$(echo $REPO | cut -d/ -f2)
+# Create and switch to a new branch
+git checkout -b feat/add-user-authentication
+```
 
-# Create branch
-BRANCH="feat/$(date +%Y%m%d%H%M%S)"
-git checkout -b $BRANCH
-git add . && git commit -m "..."
-git push -u origin $BRANCH
+Branch naming conventions:
+- `feat/description` — new features
+- `fix/description` — bug fixes
+- `refactor/description` — code restructuring
+- `docs/description` — documentation
+- `ci/description` — CI/CD changes
 
-# Create PR via REST API
+## 2. Making Commits
+
+Use the agent's file tools (`write_file`, `patch`) to make changes, then commit:
+
+```bash
+# Stage specific files
+git add src/auth.py src/models/user.py tests/test_auth.py
+
+# Commit with a conventional commit message
+git commit -m "feat: add JWT-based user authentication
+
+- Add login/register endpoints
+- Add User model with password hashing
+- Add auth middleware for protected routes
+- Add unit tests for auth flow"
+```
+
+Commit message format (Conventional Commits):
+```
+type(scope): short description
+
+Longer explanation if needed. Wrap at 72 characters.
+```
+
+Types: `feat`, `fix`, `refactor`, `docs`, `test`, `ci`, `chore`, `perf`
+
+## 3. Pushing and Creating a PR
+
+### Push the Branch (same either way)
+
+```bash
+git push -u origin HEAD
+```
+
+### Create the PR
+
+**With gh:**
+
+```bash
+gh pr create \
+  --title "feat: add JWT-based user authentication" \
+  --body "## Summary
+- Adds login and register API endpoints
+- JWT token generation and validation
+
+## Test Plan
+- [ ] Unit tests pass
+
+Closes #42"
+```
+
+Options: `--draft`, `--reviewer user1,user2`, `--label "enhancement"`, `--base develop`
+
+**With git + curl:**
+
+```bash
+BRANCH=$(git branch --show-current)
+
 curl -s -X POST \
-  -H "Authorization: token $GH_TOKEN" \
-  -H "Accept: application/vnd.github+json" \
-  https://api.github.com/repos/$OWNER/$REPO_NAME/pulls \
-  -d '{"title":"<title>","body":"<description>","head":"'$BRANCH'","base":"<target>"}'
+  -H "Authorization: token $GITHUB_TOKEN" \
+  -H "Accept: application/vnd.github.v3+json" \
+  https://api.github.com/repos/$OWNER/$REPO/pulls \
+  -d "{
+    \"title\": \"feat: add JWT-based user authentication\",
+    \"body\": \"## Summary\nAdds login and register API endpoints.\n\nCloses #42\",
+    \"head\": \"$BRANCH\",
+    \"base\": \"main\"
+  }"
+```
 
+The response JSON includes the PR `number` — save it for later commands.
 
-## CI Monitoring & Auto-Fix
+To create as a draft, add `"draft": true` to the JSON body.
 
-### Check CI status
+## 4. Monitoring CI Status
 
-bash
-# gh
-gh pr status
-gh pr checks <pr-number>
+### Check CI Status
 
-# curl fallback
-curl -s -H "Authorization: token $GH_TOKEN" \
-  "https://api.github.com/repos/$OWNER/$REPO_NAME/commits/$BRANCH/status"
+**With gh:**
 
+```bash
+# One-shot check
+gh pr checks
 
-### Auto-fix CI failures
+# Watch until all checks finish (polls every 10s)
+gh pr checks --watch
+```
 
-bash
-# Checkout PR branch
-gh pr checkout <pr-number>
-# Fix failures locally, amend or create new commit
-git commit --amend --no-edit
-git push --force-with-lease
+**With git + curl:**
 
+```bash
+# Get the latest commit SHA on the current branch
+SHA=$(git rev-parse HEAD)
 
-## Merge
+# Query the combined status
+curl -s \
+  -H "Authorization: token $GITHUB_TOKEN" \
+  https://api.github.com/repos/$OWNER/$REPO/commits/$SHA/status \
+  | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+print(f\"Overall: {data['state']}\")
+for s in data.get('statuses', []):
+    print(f\"  {s['context']}: {s['state']} - {s.get('description', '')}\")"
 
-bash
-# gh
-gh pr merge <pr-number> --squash --delete-branch
+# Also check GitHub Actions check runs (separate endpoint)
+curl -s \
+  -H "Authorization: token $GITHUB_TOKEN" \
+  https://api.github.com/repos/$OWNER/$REPO/commits/$SHA/check-runs \
+  | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for cr in data.get('check_runs', []):
+    print(f\"  {cr['name']}: {cr['status']} / {cr['conclusion'] or 'pending'}\")"
+```
 
-# curl fallback
+### Poll Until Complete (git + curl)
+
+```bash
+# Simple polling loop — check every 30 seconds, up to 10 minutes
+SHA=$(git rev-parse HEAD)
+for i in $(seq 1 20); do
+  STATUS=$(curl -s \
+    -H "Authorization: token $GITHUB_TOKEN" \
+    https://api.github.com/repos/$OWNER/$REPO/commits/$SHA/status \
+    | python3 -c "import sys,json; print(json.load(sys.stdin)['state'])")
+  echo "Check $i: $STATUS"
+  if [ "$STATUS" = "success" ] || [ "$STATUS" = "failure" ] || [ "$STATUS" = "error" ]; then
+    break
+  fi
+  sleep 30
+done
+```
+
+## 5. Auto-Fixing CI Failures
+
+When CI fails, diagnose and fix. This loop works with either auth method.
+
+### Step 1: Get Failure Details
+
+**With gh:**
+
+```bash
+# List recent workflow runs on this branch
+gh run list --branch $(git branch --show-current) --limit 5
+
+# View failed logs
+gh run view <RUN_ID> --log-failed
+```
+
+**With git + curl:**
+
+```bash
+BRANCH=$(git branch --show-current)
+
+# List workflow runs on this branch
+curl -s \
+  -H "Authorization: token $GITHUB_TOKEN" \
+  "https://api.github.com/repos/$OWNER/$REPO/actions/runs?branch=$BRANCH&per_page=5" \
+  | python3 -c "
+import sys, json
+runs = json.load(sys.stdin)['workflow_runs']
+for r in runs:
+    print(f\"Run {r['id']}: {r['name']} - {r['conclusion'] or r['status']}\")"
+
+# Get failed job logs (download as zip, extract, read)
+RUN_ID=<run_id>
+curl -s -L \
+  -H "Authorization: token $GITHUB_TOKEN" \
+  https://api.github.com/repos/$OWNER/$REPO/actions/runs/$RUN_ID/logs \
+  -o /tmp/ci-logs.zip
+cd /tmp && unzip -o ci-logs.zip -d ci-logs && cat ci-logs/*.txt
+```
+
+### Step 2: Fix and Push
+
+After identifying the issue, use file tools (`patch`, `write_file`) to fix it:
+
+```bash
+git add <fixed_files>
+git commit -m "fix: resolve CI failure in <check_name>"
+git push
+```
+
+### Step 3: Verify
+
+Re-check CI status using the commands from Section 4 above.
+
+### Auto-Fix Loop Pattern
+
+When asked to auto-fix CI, follow this loop:
+
+1. Check CI status → identify failures
+2. Read failure logs → understand the error
+3. Use `read_file` + `patch`/`write_file` → fix the code
+4. `git add . && git commit -m "fix: ..." && git push`
+5. Wait for CI → re-check status
+6. Repeat if still failing (up to 3 attempts, then ask the user)
+
+## 6. Merging
+
+**With gh:**
+
+```bash
+# Squash merge + delete branch (cleanest for feature branches)
+gh pr merge --squash --delete-branch
+
+# Enable auto-merge (merges when all checks pass)
+gh pr merge --auto --squash --delete-branch
+```
+
+**With git + curl:**
+
+```bash
+PR_NUMBER=<number>
+
+# Merge the PR via API (squash)
 curl -s -X PUT \
-  -H "Authorization: token $GH_TOKEN" \
-  -H "Accept: application/vnd.github+json" \
-  "https://api.github.com/repos/$OWNER/$REPO_NAME/pulls/<pr-number>/merge" \
-  -d '{"merge_method":"squash"}'
+  -H "Authorization: token $GITHUB_TOKEN" \
+  https://api.github.com/repos/$OWNER/$REPO/pulls/$PR_NUMBER/merge \
+  -d "{
+    \"merge_method\": \"squash\",
+    \"commit_title\": \"feat: add user authentication (#$PR_NUMBER)\"
+  }"
 
+# Delete the remote branch after merge
+BRANCH=$(git branch --show-current)
+git push origin --delete $BRANCH
 
-## Quality Guidelines
+# Switch back to main locally
+git checkout main && git pull origin main
+git branch -d $BRANCH
+```
 
-- Check gh availability first, then fall back to git+curl. Do NOT assume gh is installed.
-- PR descriptions and branch names must be validated before creation to avoid silent failures.
-- CI status polling should include a timeout to prevent infinite loops.
-- Auto-fix logic must identify the specific failing step before attempting remediation.
-- API rate limiting: 5000 req/hr for authenticated requests
+Merge methods: `"merge"` (merge commit), `"squash"`, `"rebase"`
+
+### Enable Auto-Merge (curl)
+
+```bash
+# Auto-merge requires the repo to have it enabled in settings.
+# This uses the GraphQL API since REST doesn't support auto-merge.
+PR_NODE_ID=$(curl -s \
+  -H "Authorization: token $GITHUB_TOKEN" \
+  https://api.github.com/repos/$OWNER/$REPO/pulls/$PR_NUMBER \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['node_id'])")
+
+curl -s -X POST \
+  -H "Authorization: token $GITHUB_TOKEN" \
+  https://api.github.com/graphql \
+  -d "{\"query\": \"mutation { enablePullRequestAutoMerge(input: {pullRequestId: \\\"$PR_NODE_ID\\\", mergeMethod: SQUASH}) { clientMutationId } }\"}"
+```
+
+## 7. Complete Workflow Example
+
+```bash
+# 1. Start from clean main
+git checkout main && git pull origin main
+
+# 2. Branch
+git checkout -b fix/login-redirect-bug
+
+# 3. (Agent makes code changes with file tools)
+
+# 4. Commit
+git add src/auth/login.py tests/test_login.py
+git commit -m "fix: correct redirect URL after login
+
+Preserves the ?next= parameter instead of always redirecting to /dashboard."
+
+# 5. Push
+git push -u origin HEAD
+
+# 6. Create PR (picks gh or curl based on what's available)
+# ... (see Section 3)
+
+# 7. Monitor CI (see Section 4)
+
+# 8. Merge when green (see Section 6)
+```
+
+## Useful PR Commands Reference
+
+| Action | gh | git + curl |
+|--------|-----|-----------|
+| List my PRs | `gh pr list --author @me` | `curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/$OWNER/$REPO/pulls?state=open"` |
+| View PR diff | `gh pr diff` | `git diff main...HEAD` (local) or `curl -H "Accept: application/vnd.github.diff" ...` |
+| Add comment | `gh pr comment N --body "..."` | `curl -X POST .../issues/N/comments -d '{"body":"..."}'` |
+| Request review | `gh pr edit N --add-reviewer user` | `curl -X POST .../pulls/N/requested_reviewers -d '{"reviewers":["user"]}'` |
+| Close PR | `gh pr close N` | `curl -X PATCH .../pulls/N -d '{"state":"closed"}'` |
+| Check out someone's PR | `gh pr checkout N` | `git fetch origin pull/N/head:pr-N && git checkout pr-N` |

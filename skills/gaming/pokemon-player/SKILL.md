@@ -1,138 +1,216 @@
 ---
 name: pokemon-player
-description: "Use when playing Pokemon games autonomously via headless emulation. Starts a game server, reads structured game state from RAM, makes strategic decisions, and sends button inputs — all from the terminal. NOT for: non-Pokemon games, other game emulation, competitive online battles, real-time gaming, or when visual feedback is required."
-category: general
+description: "Play Pokemon via headless emulator + RAM reads."
+tags: [gaming, pokemon, emulator, pyboy, gameplay, gameboy]
+platforms: [linux, macos, windows]
 ---
+# Pokemon Player
 
-## Architecture
+Play Pokemon games via headless emulation using the `pokemon-agent` package.
 
-- **pyboy** — pure Python Game Boy emulator; run headless (`--disable-render`)
-- **Lua scripts** — embedded in save state; read/write RAM, push button combos
-- **game-server.py** — Flask API wrapping pyboy + Lua bridge; exposes RAM addresses as REST endpoints
-- **strategy/** — decision engine (type advantages, move priority, HP thresholds)
-- **button_inputs/** — pre-built combo sequences (grinding, shiny hunting, etc.)
+## When to Use
+- User says "play pokemon", "start pokemon", "pokemon game"
+- User asks about Pokemon Red, Blue, Yellow, FireRed, etc.
+- User wants to watch an AI play Pokemon
+- User references a ROM file (.gb, .gbc, .gba)
 
-## Use when
+## Startup Procedure
 
-- Playing Pokemon games automatically
-- Training Pokemon for battle strategies
-- Completing in-game tasks and quests
-- Mass catching or farming Pokemon
-- Testing game logic and mechanics
-- Running Pokemon game automation on servers
+### 1. First-time setup (clone, venv, install)
+The repo is NousResearch/pokemon-agent on GitHub. Clone it, then
+set up a Python 3.10+ virtual environment. Use uv (preferred for speed)
+to create the venv and install the package in editable mode with the
+pyboy extra. If uv is not available, fall back to python3 -m venv + pip.
 
-## Startup
+On this machine it is already set up at /home/teknium/pokemon-agent
+with a venv ready — just cd there and source .venv/bin/activate.
 
-bash
-# 1. Start game server
-cd ~/.hermes/pokemon-player
-python game-server.py --rom PokemonRed.gb --port 5000 &
+You also need a ROM file. Ask the user for theirs. On this machine
+one exists at roms/pokemon_red.gb inside that directory.
+NEVER download or provide ROM files — always ask the user.
 
-# 2. Verify server is up
-curl http://localhost:5000/health  # should return {"status": "ok", "state": "playing"}
+### 2. Start the game server
+From inside the pokemon-agent directory with the venv activated, run
+pokemon-agent serve with --rom pointing to the ROM and --port 9876.
+Run it in the background with &.
+To resume from a saved game, add --load-state with the save name.
+Wait 4 seconds for startup, then verify with GET /health.
 
-# 3. Check RAM is readable
-curl http://localhost:5000/ram?addr=0xC000  # HP of first party Pokemon
+### 3. Set up live dashboard for user to watch
+Use an SSH reverse tunnel via localhost.run so the user can view
+the dashboard in their browser. Connect with ssh, forwarding local
+port 9876 to remote port 80 on nokey@localhost.run. Redirect output
+to a log file, wait 10 seconds, then grep the log for the .lhr.life
+URL. Give the user the URL with /dashboard/ appended.
+The tunnel URL changes each time — give the user the new one if restarted.
 
+## Save and Load
 
-## RAM Map (Pokemon Red/Blue)
+### When to save
+- Every 15-20 turns of gameplay
+- ALWAYS before gym battles, rival encounters, or risky fights
+- Before entering a new town or dungeon
+- Before any action you are unsure about
 
-| Address | Size | Description |
-|---------|------|-------------|
-| 0xC000–0xC04F | 80 | Party Pokemon (6 × 44 bytes each) |
-| 0xD058 | 1 | Current HP (low byte) |
-| 0xD059 | 1 | Current HP (high byte) |
-| 0xD016 | 1 | Current menu/overworld state |
-| 0xD05E | 1 | Battle state (0=none, 1=enemy appeared, 2=battle) |
-| 0xCC4B | 1 | Badge flags |
-| 0xD721 | 1 | Pokemon caught flag |
+### How to save
+POST /save with a descriptive name. Good examples:
+before_brock, route1_start, mt_moon_entrance, got_cut
 
-## Key Endpoints
+### How to load
+POST /load with the save name.
 
-- `GET /ram?addr=0xXXXX` — read raw RAM at hex address
-- `GET /party` — parse all 6 Pokemon: species, level, HP, status
-- `GET /battle` — current battle state, enemy Pokemon, available moves
-- `POST /button` — send a button press: `{"button": "A"}`, `{"button": "START"}`, etc.
-- `POST /combo` — send a sequence: `{"sequence": ["LEFT", "A", "DOWN", 0.1, ...]}` (timestamps in seconds)
-- `POST /save?name=mysave.state` — persist emulator state
-- `GET /health` — health check
+### List available saves
+GET /saves returns all saved states.
 
-## Usage
+### Loading on server startup
+Use --load-state flag when starting the server to auto-load a save.
+This is faster than loading via the API after startup.
 
-bash
-# Basic gameplay
-curl -X POST http://localhost:5000/button -d '{"button":"A"}'
+## The Gameplay Loop
 
-# Grind XP for 5 minutes (battles, then run)
-curl -X POST http://localhost:5000/combo -d '{"sequence":["A",0.5,"LEFT",0.3,"A",0.5,"B",0.1],"loop":120}'
+### Step 1: OBSERVE — check state AND take a screenshot
+GET /state for position, HP, battle, dialog.
+GET /screenshot and save to /tmp/pokemon.png, then use vision_analyze.
+Always do BOTH — RAM state gives numbers, vision gives spatial awareness.
 
-# Check party status
-curl http://localhost:5000/party | jq '.[] | {species, level, hp}'
+### Step 2: ORIENT
+- Dialog/text on screen → advance it
+- In battle → fight or run
+- Party hurt → head to Pokemon Center
+- Near objective → navigate carefully
 
-# Save progress
-curl -X POST http://localhost:5000/save -d '{"name":"route1"}'
+### Step 3: DECIDE
+Priority: dialog > battle > heal > story objective > training > explore
 
-# Load saved state
-curl -X POST http://localhost:5000/load -d '{"name":"route1"}'
+### Step 4: ACT — move 2-4 steps max, then re-check
+POST /action with a SHORT action list (2-4 actions, not 10-15).
 
+### Step 5: VERIFY — screenshot after every move sequence
+Take a screenshot and use vision_analyze to confirm you moved where
+intended. This is the MOST IMPORTANT step. Without vision you WILL get lost.
 
-## Batch File Modification Lessons (from skill evolution sessions)
+### Step 6: RECORD progress to memory with PKM: prefix
 
-When performing batch modifications to skill files (SKILL.md, JSON configs, YAML frontmatter), the following patterns were validated across 6+ agent sessions:
+### Step 7: SAVE periodically
 
-### 1. Always Verify Immediately with read_file, Not search_files
+## Action Reference
+- press_a — confirm, talk, select
+- press_b — cancel, close menu
+- press_start — open game menu
+- walk_up/down/left/right — move one tile
+- hold_b_N — hold B for N frames (use for speeding through text)
+- wait_60 — wait about 1 second (60 frames)
+- a_until_dialog_end — press A repeatedly until dialog clears
 
-The patch tool may report `{"success": true}` even when changes don't persist to disk. Always read the file back immediately after patching to confirm:
+## Critical Tips from Experience
 
-bash
-# WRONG: Trust patch success response
-patch ... && echo "done"  # patch says OK but file unchanged
+### USE VISION CONSTANTLY
+- Take a screenshot every 2-4 movement steps
+- The RAM state tells you position and HP but NOT what is around you
+- Ledges, fences, signs, building doors, NPCs — only visible via screenshot
+- Ask the vision model specific questions: "what is one tile north of me?"
+- When stuck, always screenshot before trying random directions
 
-# RIGHT: Immediately read back to verify
-patch ...
-read_file(path, limit=5)  # confirm new content is actually there
+### Warp Transitions Need Extra Wait Time
+When walking through a door or stairs, the screen fades to black during
+the map transition. You MUST wait for it to complete. Add 2-3 wait_60
+actions after any door/stair warp. Without waiting, the position reads
+as stale and you will think you are still in the old map.
 
+### Building Exit Trap
+When you exit a building, you appear directly IN FRONT of the door.
+If you walk north, you go right back inside. ALWAYS sidestep first
+by walking left or right 2 tiles, then proceed in your intended direction.
 
-### 2. Multiline YAML Block Scalars Need Careful Handling
+### Dialog Handling
+Gen 1 text scrolls slowly letter-by-letter. To speed through dialog,
+hold B for 120 frames then press A. Repeat as needed. Holding B makes
+text display at max speed. Then press A to advance to the next line.
+The a_until_dialog_end action checks the RAM dialog flag, but this flag
+does not catch ALL text states. If dialog seems stuck, use the manual
+hold_b + press_a pattern instead and verify via screenshot.
 
-Descriptions using `>`, `>-`, or `|` YAML multiline syntax are collapsed to single-line strings when patched. This changes the character count and can cause truncation. Always read the full multiline block first, then patch using the exact original string:
+### Ledges Are One-Way
+Ledges (small cliff edges) can only be jumped DOWN (south), never climbed
+UP (north). If blocked by a ledge going north, you must go left or right
+to find the gap around it. Use vision to identify which direction the
+gap is. Ask the vision model explicitly.
 
-yaml
-# BEFORE (multiline block scalar)
-description: >
-  Description text that
-  spans multiple lines.
+### Navigation Strategy
+- Move 2-4 steps at a time, then screenshot to check position
+- When entering a new area, screenshot immediately to orient
+- Ask the vision model "which direction to [destination]?"
+- If stuck for 3+ attempts, screenshot and re-evaluate completely
+- Do not spam 10-15 movements — you will overshoot or get stuck
 
-# AFTER (single-line string)
-description: "Description text that spans multiple lines."
+### Running from Wild Battles
+On the battle menu, RUN is bottom-right. To reach it from the default
+cursor position (FIGHT, top-left): press down then right to move cursor
+to RUN, then press A. Wrap with hold_b to speed through text/animations.
 
+### Battling (FIGHT)
+On the battle menu FIGHT is top-left (default cursor position).
+Press A to enter move selection, A again to use the first move.
+Then hold B to speed through attack animations and text.
 
-### 3. Patch Tool May Report Success Without Persisting
+## Battle Strategy
 
-Across sessions, the patch tool returned `success: true` with valid diffs but the filesystem was not updated. When this happens:
-- Re-read the file to see the current state
-- Apply the patch again with the exact current string (not the string from before the failed patch)
-- If a third attempt fails, consider using `terminal` with `sed` or direct file write
+### Decision Tree
+1. Want to catch? → Weaken then throw Poke Ball
+2. Wild you don't need? → RUN
+3. Type advantage? → Use super-effective move
+4. No advantage? → Use strongest STAB move
+5. Low HP? → Switch or use Potion
 
-### 4. Batch Sizing: 5 Files Per Round is Optimal
+### Gen 1 Type Chart (key matchups)
+- Water beats Fire, Ground, Rock
+- Fire beats Grass, Bug, Ice
+- Grass beats Water, Ground, Rock
+- Electric beats Water, Flying
+- Ground beats Fire, Electric, Rock, Poison
+- Psychic beats Fighting, Poison (dominant in Gen 1!)
 
-Sessions that attempted larger batches (10-20 files) had higher failure rates due to:
-- Stale context between reads and patches
-- Cumulative string-matching drift
-- No mid-batch verification
+### Gen 1 Quirks
+- Special stat = both offense AND defense for special moves
+- Psychic type is overpowered (Ghost moves bugged)
+- Critical hits based on Speed stat
+- Wrap/Bind prevent opponent from acting
+- Focus Energy bug: REDUCES crit rate instead of raising it
 
-Optimal pattern:
+## Memory Conventions
+| Prefix | Purpose | Example |
+|--------|---------|---------|
+| PKM:OBJECTIVE | Current goal | Get Parcel from Viridian Mart |
+| PKM:MAP | Navigation knowledge | Viridian: mart is northeast |
+| PKM:STRATEGY | Battle/team plans | Need Grass type before Misty |
+| PKM:PROGRESS | Milestone tracker | Beat rival, heading to Viridian |
+| PKM:STUCK | Stuck situations | Ledge at y=28 go right to bypass |
+| PKM:TEAM | Team notes | Squirtle Lv6, Tackle + Tail Whip |
 
+## Progression Milestones
+- Choose starter
+- Deliver Parcel from Viridian Mart, receive Pokedex
+- Boulder Badge — Brock (Rock) → use Water/Grass
+- Cascade Badge — Misty (Water) → use Grass/Electric
+- Thunder Badge — Lt. Surge (Electric) → use Ground
+- Rainbow Badge — Erika (Grass) → use Fire/Ice/Flying
+- Soul Badge — Koga (Poison) → use Ground/Psychic
+- Marsh Badge — Sabrina (Psychic) → hardest gym
+- Volcano Badge — Blaine (Fire) → use Water/Ground
+- Earth Badge — Giovanni (Ground) → use Water/Grass/Ice
+- Elite Four → Champion!
 
-read_file batch (5 files)
- ↓
-patch batch (5 files)
- ↓
-verify batch (5 files)
- ↓
-repeat
+## Stopping Play
+1. Save the game with a descriptive name via POST /save
+2. Update memory with PKM:PROGRESS
+3. Tell user: "Game saved as [name]! Say 'play pokemon' to resume."
+4. Kill the server and tunnel background processes
 
-
-### 5. search_files Caching vs. read_file Freshness
-
-`search_files` may return cached/stale results showing new content that `read_file` doesn't yet show. Always use `read_file` as the source of truth for verification. Use `search_files` only for initial discovery (e.g., "which files contain this pattern").
+## Pitfalls
+- NEVER download or provide ROM files
+- Do NOT send more than 4-5 actions without checking vision
+- Always sidestep after exiting buildings before going north
+- Always add wait_60 x2-3 after door/stair warps
+- Dialog detection via RAM is unreliable — verify with screenshots
+- Save BEFORE risky encounters
+- The tunnel URL changes each time you restart it

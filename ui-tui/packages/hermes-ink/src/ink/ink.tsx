@@ -19,10 +19,12 @@ import App from './components/App.js'
 import type { CursorDeclaration, CursorDeclarationSetter } from './components/CursorDeclarationContext.js'
 import { FRAME_INTERVAL_MS } from './constants.js'
 import * as dom from './dom.js'
+import { markDirty } from './dom.js'
 import { KeyboardEvent } from './events/keyboard-event.js'
 import { FocusManager } from './focus.js'
 import { emptyFrame, type Frame, type FrameEvent } from './frame.js'
 import { dispatchClick, dispatchHover, dispatchMouse } from './hit-test.js'
+import { applyHyperlinkHoverHighlight } from './hyperlinkHover.js'
 import instances from './instances.js'
 import { LogUpdate } from './log-update.js'
 import { nodeCache } from './node-cache.js'
@@ -61,6 +63,8 @@ import {
   getSelectedText,
   hasSelection,
   moveFocus,
+  selectionBounds,
+  selectionSignature,
   type SelectionState,
   selectLineAt,
   selectWordAt,
@@ -70,7 +74,13 @@ import {
   startSelection,
   updateSelection
 } from './selection.js'
-import { supportsExtendedKeys, SYNC_OUTPUT_SUPPORTED, type Terminal, writeDiffToTerminal } from './terminal.js'
+import {
+  needsAltScreenResizeScrollbackClear,
+  supportsExtendedKeys,
+  SYNC_OUTPUT_SUPPORTED,
+  type Terminal,
+  writeDiffToTerminal
+} from './terminal.js'
 import {
   CURSOR_HOME,
   cursorMove,
@@ -79,7 +89,8 @@ import {
   DISABLE_MODIFY_OTHER_KEYS,
   ENABLE_KITTY_KEYBOARD,
   ENABLE_MODIFY_OTHER_KEYS,
-  ERASE_SCREEN
+  ERASE_SCREEN,
+  ERASE_SCROLLBACK
 } from './termio/csi.js'
 import {
   DBP,
@@ -118,6 +129,11 @@ const ERASE_THEN_HOME_PATCH = Object.freeze({
   content: ERASE_SCREEN + CURSOR_HOME
 })
 
+const DEEP_ERASE_THEN_HOME_PATCH = Object.freeze({
+  type: 'stdout' as const,
+  content: ERASE_SCREEN + ERASE_SCROLLBACK + CURSOR_HOME
+})
+
 // Cached per-Ink-instance, invalidated on resize. frame.cursor.y for
 // alt-screen is always terminalRows - 1 (renderer.ts).
 function makeAltScreenParkPatch(terminalRows: number) {
@@ -135,6 +151,21 @@ export type Options = {
   patchConsole: boolean
   waitUntilExit?: () => Promise<void>
   onFrame?: (event: FrameEvent) => void
+  /**
+   * Called when a click lands on a cell with an OSC 8 hyperlink (or a
+   * plain-text URL detected by findPlainTextUrlAt). The host is responsible
+   * for opening the URL — `child_process.spawn` with an argv array (NOT
+   * shell-mode) to the platform's native opener: `open` on macOS,
+   * `xdg-open` on Linux/BSD, `explorer.exe` on Windows. Avoid
+   * `cmd.exe /c start` — `start` is a cmd builtin that reparses the URL
+   * through cmd's tokenizer (`&` / `|` / `^` / `<` / `>` get split or
+   * reinterpreted), which both breaks plain URLs with `&` in query
+   * strings and undermines any caller-side protocol allowlist. Without
+   * this wired up, links rendered by `<Link>` look underlined but do
+   * nothing on click in any terminal where mouse tracking is on
+   * (Cmd+click is consumed by the TUI, not Terminal.app).
+   */
+  onHyperlinkClick?: (url: string) => void
 }
 export default class Ink {
   private readonly log: LogUpdate
@@ -163,6 +194,15 @@ export default class Ink {
   private backFrame: Frame
   private lastPoolResetTime = performance.now()
   private drainTimer: ReturnType<typeof setTimeout> | null = null
+  // Write-drain telemetry: pendingWriteStart is the performance.now() of
+  // the most recent stdout.write waiting for its drain callback.  Set to
+  // null when the callback fires (drained).  Read on the NEXT frame and
+  // reported as prevFrameDrainMs so the FrameEvent records how long the
+  // previous write took to actually hit the terminal — distinguishes
+  // "queued in Node" (write returned true) from "terminal accepted bytes"
+  // (callback fired).
+  private pendingWriteStart: number | null = null
+  private lastDrainMs = 0
   private lastYogaCounters: {
     ms: number
     visited: number
@@ -202,11 +242,25 @@ export default class Ink {
   // Fired alongside the terminal repaint whenever the selection mutates
   // so UI (e.g. footer hints) can react to selection appearing/clearing.
   private readonly selectionListeners = new Set<() => void>()
-  private selectionWasActive = false
+  private selectionVersion = 0
+  private lastSelectionSignature = ''
   // DOM nodes currently under the pointer (mode-1003 motion). Held here
   // so App.tsx's handleMouseEvent is stateless — dispatchHover diffs
   // against this set and mutates it in place.
   private readonly hoveredNodes = new Set<dom.DOMElement>()
+
+  // The OSC 8 hyperlink URL under the pointer, or undefined when the cursor
+  // isn't on a link. Updated from dispatchHover; consumed by the render-pass
+  // overlay (applyHyperlinkHoverHighlight) to invert link cells under the
+  // pointer. This is the closest the TUI can get to the desktop's
+  // cursor-changes-on-hover affordance — terminals don't expose cursor
+  // shape control to applications.
+  private hoveredHyperlink: string | undefined = undefined
+
+  // Last value of hoveredHyperlink that we actually painted. Compared in
+  // onRender so we can scope full-screen damage to enter/leave/change
+  // transitions, not every steady-state hover frame.
+  private lastRenderedHoveredHyperlink: string | undefined = undefined
   // Set by <AlternateScreen> via setAltScreenActive(). Controls the
   // renderer's cursor.y clamping (keeps cursor in-viewport to avoid
   // LF-induced scroll when screen.height === terminalRows) and gates
@@ -245,11 +299,15 @@ export default class Ink {
   // microtask. Dims are captured sync in handleResize; only the
   // expensive tree rebuild defers.
   private pendingResizeRender = false
+  private resizeSettleTimer: ReturnType<typeof setTimeout> | null = null
 
   // Fold synchronous re-entry (selection fanout, onFrame callback)
   // into one follow-up microtask instead of stacking renders.
   private isRendering = false
   private immediateRerenderRequested = false
+  private selectionDragCell: { col: number; row: number } | null = null
+  private selectionAutoScrollTimer: ReturnType<typeof setInterval> | null = null
+  private selectionAutoScrollDir: -1 | 0 | 1 = 0
   constructor(private readonly options: Options) {
     autoBind(this)
 
@@ -257,6 +315,14 @@ export default class Ink {
       this.restoreConsole = this.patchConsole()
       this.restoreStderr = this.patchStderr()
     }
+
+    // Host-supplied hyperlink-open callback. The mouse-event pipeline
+    // (App.tsx → onOpenHyperlink → Ink.openHyperlink → onHyperlinkClick)
+    // is fully wired internally; without this assignment the optional
+    // chain in openHyperlink() bails silently and clicks on URLs do
+    // nothing. The field stays writable so tests / debug overlays can
+    // still rebind it after construction.
+    this.onHyperlinkClick = options.onHyperlinkClick
 
     this.terminal = {
       stdout: options.stdout,
@@ -439,6 +505,11 @@ export default class Ink {
       this.drainTimer = null
     }
 
+    if (this.resizeSettleTimer !== null) {
+      clearTimeout(this.resizeSettleTimer)
+      this.resizeSettleTimer = null
+    }
+
     // Alt screen: reset frame buffers so the next render repaints from
     // scratch (prevFrameContaminated → every cell written, wrapped in
     // BSU/ESU — old content stays visible until the new frame swaps
@@ -456,6 +527,20 @@ export default class Ink {
 
       this.resetFramesForAltScreen()
       this.needsEraseBeforePaint = true
+
+      // One last repaint after the resize burst settles closes any host-side
+      // reflow drift the normal diff path can't see.
+      this.resizeSettleTimer = setTimeout(() => {
+        this.resizeSettleTimer = null
+
+        if (!this.canAltScreenRepaint()) {
+          return
+        }
+
+        this.resetFramesForAltScreen()
+        this.needsEraseBeforePaint = true
+        this.render(this.currentNode!)
+      }, 160)
     }
 
     // Already queued: later events in this burst updated dims/alt-screen
@@ -477,6 +562,17 @@ export default class Ink {
       this.render(this.currentNode)
     })
   }
+
+  private canAltScreenRepaint(): boolean {
+    return (
+      !this.isUnmounted &&
+      !this.isPaused &&
+      this.altScreenActive &&
+      !!this.options.stdout.isTTY &&
+      this.currentNode !== null
+    )
+  }
+
   resolveExitPromise: () => void = () => {}
   rejectExitPromise: (reason?: Error) => void = () => {}
   unsubscribeExit: () => void = () => {}
@@ -710,6 +806,26 @@ export default class Ink {
       // Position-highlight (below) overlays CURRENT (yellow) on top.
       hlActive = applySearchHighlight(frame.screen, this.searchHighlightQuery, this.stylePool)
 
+      // Hyperlink hover overlay: inverts every cell of the link currently
+      // under the pointer. Cheap-ish (linear scan of the visible buffer),
+      // only fires when hoveredHyperlink is set.
+      //
+      // hlActive controls full-screen damage (used by selection/search to
+      // make sure the previous frame's inverted cells get re-diffed when
+      // the highlight set changes). For hover, the *transition* is what
+      // needs the full-damage hammer — enter / leave / change-to-other-link.
+      // During steady-state hover the painted cells don't change and the
+      // ordinary per-cell diff handles the no-op. Folding the steady-state
+      // case into hlActive would burn full-screen diffs every frame while
+      // the pointer just sits on the link.
+      const hoverApplied = applyHyperlinkHoverHighlight(frame.screen, this.hoveredHyperlink, this.stylePool)
+      const hoverTransition = this.hoveredHyperlink !== this.lastRenderedHoveredHyperlink
+      this.lastRenderedHoveredHyperlink = this.hoveredHyperlink
+
+      if (hoverApplied && hoverTransition) {
+        hlActive = true
+      }
+
       // Position-based CURRENT: write yellow at positions[currentIdx] +
       // rowOffset. No scanning — positions came from a prior scan when
       // the message first mounted. Message-relative + rowOffset = screen.
@@ -816,17 +932,17 @@ export default class Ink {
       // position independently. Parking at bottom (not 0,0) keeps the guide
       // where the user's attention is.
       //
-      // After resize, prepend ERASE_SCREEN too. The diff only writes cells
+      // After resize, prepend a clear too. The diff only writes cells
       // that changed; cells where new=blank and prev-buffer=blank get skipped
       // — but the physical terminal still has stale content there (shorter
-      // lines at new width leave old-width text tails visible). ERASE inside
-      // BSU/ESU is atomic: old content stays visible until the whole
-      // erase+paint lands, then swaps in one go. Writing ERASE_SCREEN
-      // synchronously in handleResize would blank the screen for the ~80ms
-      // render() takes.
+      // lines at new width leave old-width text tails visible). Apple Terminal
+      // can also preserve alt-screen reflow artifacts in scrollback during
+      // resize, so it gets CSI 3J in this one recovery path. When BSU/ESU is
+      // supported, the clear+paint lands atomically; otherwise the final state
+      // is still healed even if the repaint is visible.
       if (this.needsEraseBeforePaint) {
         this.needsEraseBeforePaint = false
-        optimized.unshift(ERASE_THEN_HOME_PATCH)
+        optimized.unshift(needsAltScreenResizeScrollbackClear() ? DEEP_ERASE_THEN_HOME_PATCH : ERASE_THEN_HOME_PATCH)
       } else {
         optimized.unshift(CURSOR_HOME_PATCH)
       }
@@ -934,7 +1050,42 @@ export default class Ink {
     }
 
     const tWrite = performance.now()
-    writeDiffToTerminal(this.terminal, optimized, this.altScreenActive && !SYNC_OUTPUT_SUPPORTED)
+
+    // Capture any stale pending write BEFORE starting this frame's write —
+    // if the callback already fired, pendingWriteStart is null and lastDrainMs
+    // already reflects the previous frame's drain.  If it hasn't fired, we
+    // report "still pending" via a non-zero duration based on now-then so
+    // backpressure shows up even if Node never flushes this session.
+    const staleDrain = this.pendingWriteStart !== null ? performance.now() - this.pendingWriteStart : this.lastDrainMs
+
+    const prevFrameDrainMs = Math.round(staleDrain * 100) / 100
+    this.lastDrainMs = 0
+
+    // Only track drain on TTY. Piped/non-TTY stdout bypasses flow control.
+    const trackDrain = this.options.stdout.isTTY && hasDiff
+    const drainStart = trackDrain ? tWrite : 0
+
+    if (trackDrain) {
+      this.pendingWriteStart = drainStart
+    }
+
+    const { bytes: writeBytes, backpressure } = writeDiffToTerminal(
+      this.terminal,
+      optimized,
+      this.altScreenActive && !SYNC_OUTPUT_SUPPORTED,
+      trackDrain
+        ? () => {
+            // Callback fires once Node has flushed the chunk to the OS.
+            // Capture the drain time and clear pending so the NEXT frame's
+            // staleDrain = the real end-to-end flush time.
+            if (this.pendingWriteStart === drainStart) {
+              this.lastDrainMs = performance.now() - drainStart
+              this.pendingWriteStart = null
+            }
+          }
+        : undefined
+    )
+
     const writeMs = performance.now() - tWrite
 
     // Update blit safety for the NEXT frame. The frame just rendered
@@ -972,6 +1123,10 @@ export default class Ink {
         optimize: optimizeMs,
         write: writeMs,
         patches: diff.length,
+        optimizedPatches: optimized.length,
+        writeBytes,
+        backpressure,
+        prevFrameDrainMs,
         yoga: yogaMs,
         commit: commitMs,
         yogaVisited: yc.visited,
@@ -1084,10 +1239,37 @@ export default class Ink {
     this.altScreenActive = active
     this.altScreenMouseTracking = active && mouseTracking
 
+    // Hover state is alt-screen-scoped: dispatchHover is gated on
+    // altScreenActive, so once we leave the alt screen there's no path to
+    // clear it on our own. Without this reset, remounting <AlternateScreen>
+    // would render a phantom hover highlight from the previous session
+    // until the next mouse-move event arrived. Clear both the live value
+    // and the last-rendered tracker so the next onRender sees no transition
+    // and no overlay.
+    this.hoveredHyperlink = undefined
+    this.lastRenderedHoveredHyperlink = undefined
+
     if (active) {
       this.resetFramesForAltScreen()
     } else {
       this.repaint()
+    }
+  }
+
+  /**
+   * Toggle mouse tracking at runtime while the alt screen is active.
+   * Writes the appropriate DEC reset/set sequences so the terminal
+   * (and ConPTY on Windows WSL2) reflects the change immediately.
+   */
+  setAltScreenMouseTracking(enabled: boolean): void {
+    if (this.altScreenMouseTracking === enabled) {
+      return
+    }
+
+    this.altScreenMouseTracking = enabled
+
+    if (this.altScreenActive) {
+      this.options.stdout.write(enabled ? ENABLE_MOUSE_TRACKING : DISABLE_MOUSE_TRACKING)
     }
   }
   get isAltScreenActive(): boolean {
@@ -1249,11 +1431,13 @@ export default class Ink {
   }
 
   /**
-   * Copy the current selection to the clipboard without clearing the
-   * highlight. Matches iTerm2's copy-on-select behavior where the selected
-   * region stays visible after the automatic copy.
+   * Copy the current text selection to the system clipboard without clearing the
+   * selection. Returns the copied text when a clipboard path succeeded (native
+   * tool fired, tmux buffer loaded, or OSC 52 emitted), or '' when no path was
+   * taken (e.g. headless Linux without tmux). Matches iTerm2's copy-on-select
+   * behavior where the selected region stays visible after the automatic copy.
    */
-  copySelectionNoClear(): string {
+  async copySelectionNoClear(): Promise<string> {
     if (!hasSelection(this.selection)) {
       return ''
     }
@@ -1261,28 +1445,43 @@ export default class Ink {
     const text = getSelectedText(this.selection, this.frontFrame.screen)
 
     if (text) {
-      // Raw OSC 52, or DCS-passthrough-wrapped OSC 52 inside tmux (tmux
-      // drops it silently unless allow-passthrough is on — no regression).
-      void setClipboard(text).then(raw => {
-        if (raw) {
-          this.options.stdout.write(raw)
+      try {
+        const { sequence, success } = await setClipboard(text)
+
+        if (sequence) {
+          this.options.stdout.write(sequence)
         }
-      })
+
+        if (success) {
+          return text
+        }
+
+        if (process.env.HERMES_TUI_DEBUG_CLIPBOARD) {
+          console.error(
+            '[clipboard] no path reached the clipboard (headless + no tmux?) — set HERMES_TUI_FORCE_OSC52=1 to force the escape sequence'
+          )
+        }
+      } catch (err) {
+        if (process.env.HERMES_TUI_DEBUG_CLIPBOARD) {
+          console.error('[clipboard] error:', err)
+        }
+      }
     }
 
-    return text
+    return ''
   }
 
   /**
    * Copy the current text selection to the system clipboard via OSC 52
-   * and clear the selection. Returns the copied text (empty if no selection).
+   * and clear the selection. Returns the copied text (empty if no selection
+   * or clipboard operation failed).
    */
-  copySelection(): string {
+  async copySelection(): Promise<string> {
     if (!hasSelection(this.selection)) {
       return ''
     }
 
-    const text = this.copySelectionNoClear()
+    const text = await this.copySelectionNoClear()
     clearSelection(this.selection)
     this.notifySelectionChange()
 
@@ -1543,9 +1742,16 @@ export default class Ink {
     return hasSelection(this.selection)
   }
 
+  getSelectionVersion(): number {
+    return this.selectionVersion
+  }
+
   /**
    * Subscribe to selection state changes. Fires whenever the selection
-   * is started, updated, cleared, or copied. Returns an unsubscribe fn.
+   * mutates — anchor/focus moves, drag updates, programmatic clears.
+   * Does NOT fire on `copySelectionNoClear()` (no mutation, no notify),
+   * which is why version-based subscribers don't risk re-entrant copies.
+   * Returns an unsubscribe fn.
    */
   subscribeToSelectionChange(cb: () => void): () => void {
     this.selectionListeners.add(cb)
@@ -1555,14 +1761,18 @@ export default class Ink {
   private notifySelectionChange(): void {
     this.scheduleRender()
 
-    const active = hasSelection(this.selection)
+    // Only bump version when the selection range actually mutated.
+    // Listeners still fire unconditionally — useHasSelection() snapshots
+    // through React, which dedupes via Object.is on the boolean value.
+    const sig = selectionSignature(this.selection)
 
-    if (active !== this.selectionWasActive) {
-      this.selectionWasActive = active
+    if (sig !== this.lastSelectionSignature) {
+      this.lastSelectionSignature = sig
+      this.selectionVersion += 1
+    }
 
-      for (const cb of this.selectionListeners) {
-        cb()
-      }
+    for (const cb of this.selectionListeners) {
+      cb()
     }
   }
 
@@ -1587,6 +1797,8 @@ export default class Ink {
       return undefined
     }
 
+    this.stopSelectionAutoScroll()
+
     return dispatchMouse(
       this.rootNode,
       col,
@@ -1601,6 +1813,7 @@ export default class Ink {
       return
     }
 
+    this.stopSelectionAutoScroll()
     dispatchMouse(this.rootNode, col, row, 'onMouseUp', button, isEmptyCellAt(this.frontFrame.screen, col, row), target)
   }
   dispatchMouseDrag(target: dom.DOMElement, col: number, row: number, button: number): void {
@@ -1624,6 +1837,34 @@ export default class Ink {
     }
 
     dispatchHover(this.rootNode, col, row, this.hoveredNodes)
+
+    // Hover affordance for hyperlinks: read the cell at the pointer, store
+    // its URL (or clear when the pointer leaves a link), and request a
+    // repaint when the value changes. The render-pass overlay paints the
+    // highlight; we just track which URL is "hot".
+    //
+    // IMPORTANT: bypass getHyperlinkAt() here — its plain-text URL fallback
+    // (findPlainTextUrlAt) would return URLs for cells whose `cell.hyperlink`
+    // is undefined, which the overlay (applyHyperlinkHoverHighlight)
+    // wouldn't match. That'd burn re-renders without ever producing an
+    // affordance. Read the OSC 8 hyperlink directly off the cell so the
+    // hover state is a 1:1 fit for what the overlay can paint. The
+    // plain-text URL fallback still works for clicks; hover is a strictly
+    // weaker signal and OK to skip on plain-text URLs.
+    const screen = this.frontFrame.screen
+    const cell = cellAt(screen, col, row)
+    let next = cell?.hyperlink
+
+    // SpacerTail (second half of a wide-char / emoji glyph) stores the
+    // hyperlink on the head cell at col-1. Same logic as getHyperlinkAt.
+    if (!next && cell?.width === CellWidth.SpacerTail && col > 0) {
+      next = cellAt(screen, col - 1, row)?.hyperlink
+    }
+
+    if (next !== this.hoveredHyperlink) {
+      this.hoveredHyperlink = next
+      this.scheduleRender()
+    }
   }
   dispatchKeyboardEvent(parsedKey: ParsedKey): void {
     const target = this.focusManager.activeElement ?? this.rootNode
@@ -1668,8 +1909,13 @@ export default class Ink {
   }
 
   /**
-   * Optional callback fired when clicking an OSC 8 hyperlink in fullscreen
-   * mode. Set by FullscreenLayout via useLayoutEffect.
+   * Optional callback fired when clicking a cell that has an associated URL
+   * in fullscreen mode. `url` may be either an OSC 8 hyperlink (from a
+   * `<Link>` render or external OSC 8 escape that landed in the buffer) or
+   * a plain-text URL detected on the clicked row by findPlainTextUrlAt
+   * (App.tsx routes both into the same callback). Set from the host via
+   * the `onHyperlinkClick` Render/Ink option, or directly on the instance
+   * for late-bound test scenarios.
    */
   onHyperlinkClick: ((url: string) => void) | undefined
 
@@ -1726,6 +1972,18 @@ export default class Ink {
       return
     }
 
+    if (this.selectionDragCell?.col === col && this.selectionDragCell.row === row) {
+      this.updateSelectionAutoScroll(row)
+
+      return
+    }
+
+    this.selectionDragCell = { col, row }
+    this.applySelectionDrag(col, row)
+    this.updateSelectionAutoScroll(row)
+  }
+
+  private applySelectionDrag(col: number, row: number): void {
     const sel = this.selection
 
     if (sel.anchorSpan) {
@@ -1735,6 +1993,118 @@ export default class Ink {
     }
 
     this.notifySelectionChange()
+  }
+
+  private updateSelectionAutoScroll(row: number): void {
+    if (!this.selection.isDragging || !this.altScreenActive) {
+      this.stopSelectionAutoScroll()
+
+      return
+    }
+
+    const dir: -1 | 0 | 1 = row <= 0 ? -1 : row >= this.terminalRows - 1 ? 1 : 0
+
+    if (dir === 0) {
+      this.stopSelectionAutoScroll()
+
+      return
+    }
+
+    if (this.selectionAutoScrollDir === dir && this.selectionAutoScrollTimer) {
+      return
+    }
+
+    this.stopSelectionAutoScroll()
+    this.selectionAutoScrollDir = dir
+    this.selectionAutoScrollTimer = setInterval(() => this.stepSelectionAutoScroll(), 50)
+  }
+
+  private stepSelectionAutoScroll(): void {
+    if (!this.selection.isDragging || !this.altScreenActive || this.selectionAutoScrollDir === 0) {
+      this.stopSelectionAutoScroll()
+
+      return
+    }
+
+    const box = this.findPrimaryScrollBox()
+
+    if (!box) {
+      this.stopSelectionAutoScroll()
+
+      return
+    }
+
+    const viewport = Math.max(0, box.scrollViewportHeight ?? 0)
+    const max = Math.max(0, (box.scrollHeight ?? 0) - viewport)
+    const current = box.scrollTop ?? 0
+    const next = Math.max(0, Math.min(max, current + this.selectionAutoScrollDir))
+
+    if (next === current) {
+      return
+    }
+
+    const top = box.scrollViewportTop ?? 0
+    const bottom = top + viewport - 1
+    const before = selectionBounds(this.selection)
+
+    if (before) {
+      if (this.selectionAutoScrollDir > 0) {
+        captureScrolledRows(this.selection, this.frontFrame.screen, top, top, 'above')
+      } else {
+        captureScrolledRows(this.selection, this.frontFrame.screen, bottom, bottom, 'below')
+      }
+    }
+
+    box.stickyScroll = false
+    box.pendingScrollDelta = undefined
+    box.scrollAnchor = undefined
+    box.scrollTop = next
+    markDirty(box)
+    shiftAnchor(this.selection, -this.selectionAutoScrollDir, top, bottom)
+
+    if (this.selectionDragCell) {
+      this.selectionDragCell = {
+        col: this.selectionDragCell.col,
+        row: this.selectionAutoScrollDir > 0 ? bottom : top
+      }
+    }
+
+    this.applySelectionDrag(
+      this.selectionDragCell?.col ?? 0,
+      this.selectionDragCell?.row ?? (this.selectionAutoScrollDir > 0 ? bottom : top)
+    )
+  }
+
+  private stopSelectionAutoScroll(): void {
+    if (this.selectionAutoScrollTimer) {
+      clearInterval(this.selectionAutoScrollTimer)
+      this.selectionAutoScrollTimer = null
+    }
+
+    this.selectionAutoScrollDir = 0
+    this.selectionDragCell = null
+  }
+
+  private findPrimaryScrollBox(): dom.DOMElement | undefined {
+    const stack = [this.rootNode]
+
+    while (stack.length) {
+      const node = stack.shift()!
+
+      if (
+        node.style.overflowY === 'scroll' &&
+        node.scrollHeight !== undefined &&
+        node.scrollViewportHeight !== undefined
+      ) {
+        return node
+      }
+
+      for (const child of node.childNodes) {
+        if (child.nodeName !== '#text') {
+          stack.push(child)
+        }
+      }
+    }
   }
 
   // Methods to properly suspend stdin for external editor usage
@@ -1933,6 +2303,11 @@ export default class Ink {
     if (this.drainTimer !== null) {
       clearTimeout(this.drainTimer)
       this.drainTimer = null
+    }
+
+    if (this.resizeSettleTimer !== null) {
+      clearTimeout(this.resizeSettleTimer)
+      this.resizeSettleTimer = null
     }
 
     reconciler.updateContainerSync(null, this.container, null, noop)

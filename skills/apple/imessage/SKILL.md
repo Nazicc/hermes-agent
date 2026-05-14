@@ -1,43 +1,102 @@
 ---
 name: imessage
 description: Send and receive iMessages/SMS via the imsg CLI on macOS.
-category: general
+version: 1.0.0
+author: Hermes Agent
+license: MIT
+platforms: [macos]
+metadata:
+  hermes:
+    tags: [iMessage, SMS, messaging, macOS, Apple]
+prerequisites:
+  commands: [imsg]
 ---
 
-Send and receive iMessages and SMS messages using the `imsg` CLI tool on macOS.
+# iMessage
 
-**Prerequisites:**
-- macOS with the `imsg` command-line tool installed
-- Apple ID configured for iMessage
+Use `imsg` to read and send iMessage/SMS via macOS Messages.app.
 
-**Usage:**
+## Prerequisites
 
-bash
-# Send a message
-imsg send "+1234567890" "Hello, this is a test message"
-imsg send "contact@email.com" "Message via iMessage"
+- **macOS** with Messages.app signed in
+- Install: `brew install steipete/tap/imsg`
+- Grant Full Disk Access for terminal (System Settings → Privacy → Full Disk Access)
+- Grant Automation permission for Messages.app when prompted
 
-# Read recent messages
-imsg list
-imsg read "+1234567890"
+## When to Use
 
-# Reply to a conversation
-imsg reply "+1234567890" "Thanks for the message!"
+- User asks to send an iMessage or text message
+- Reading iMessage conversation history
+- Checking recent Messages.app chats
+- Sending to phone numbers or Apple IDs
 
-# Check unread messages
-imsg unread
+## When NOT to Use
 
+- Telegram/Discord/Slack/WhatsApp messages → use the appropriate gateway channel
+- Group chat management (adding/removing members) → not supported
+- Bulk/mass messaging → always confirm with user first
 
-**Best Practices:**
-- Always verify recipient contact before sending
-- Use full international format for phone numbers (+1XXXXXXXXXX)
-- For group messages, specify multiple recipients
-- Check `imsg --help` for additional commands and options
+## Quick Reference
 
-**Notes:**
-- Requires macOS and Apple’s iMessage service
-- SMS requires cellular plan or connected iPhone
-- Messages sync across Apple devices signed into the same Apple ID
+### List Chats
 
-**Upgrade Path:**
-This is a stub — no RIA-TV++ sections yet. Upgrade path: add A2 (trigger scenarios), R (imsg CLI reference), I (methodology), A1/A2 (examples), E (error codes), B (boundary conditions).
+```bash
+imsg chats --limit 10 --json
+```
+
+### View History
+
+```bash
+# By chat ID
+imsg history --chat-id 1 --limit 20 --json
+
+# With attachments info
+imsg history --chat-id 1 --limit 20 --attachments --json
+```
+
+### Send Messages
+
+```bash
+# Text only
+imsg send --to "+14155551212" --text "Hello!"
+
+# With attachment
+imsg send --to "+14155551212" --text "Check this out" --file /path/to/image.jpg
+
+# Force iMessage or SMS
+imsg send --to "+14155551212" --text "Hi" --service imessage
+imsg send --to "+14155551212" --text "Hi" --service sms
+```
+
+### Watch for New Messages
+
+```bash
+imsg watch --chat-id 1 --attachments
+```
+
+## Service Options
+
+- `--service imessage` — Force iMessage (requires recipient has iMessage)
+- `--service sms` — Force SMS (green bubble)
+- `--service auto` — Let Messages.app decide (default)
+
+## Rules
+
+1. **Always confirm recipient and message content** before sending
+2. **Never send to unknown numbers** without explicit user approval
+3. **Verify file paths** exist before attaching
+4. **Don't spam** — rate-limit yourself
+
+## Example Workflow
+
+User: "Text mom that I'll be late"
+
+```bash
+# 1. Find mom's chat
+imsg chats --limit 20 --json | jq '.[] | select(.displayName | contains("Mom"))'
+
+# 2. Confirm with user: "Found Mom at +1555123456. Send 'I'll be late' via iMessage?"
+
+# 3. Send after confirmation
+imsg send --to "+1555123456" --text "I'll be late"
+```

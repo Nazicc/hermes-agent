@@ -53,7 +53,6 @@ def _run_tool_in_thread(tool_name: str, arguments: Dict[str, Any], task_id: str)
     try:
         loop = asyncio.get_running_loop()
         # We're in an async context -- need to run in thread
-        import concurrent.futures
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
             future = pool.submit(
                 handle_function_call, tool_name, arguments, task_id
@@ -180,7 +179,7 @@ class ToolContext:
 
         # Ensure parent directory exists in the sandbox
         parent = str(_Path(remote_path).parent)
-        if parent not in (".", "/"):
+        if parent not in {".", "/"}:
             self.terminal(f"mkdir -p {parent}", timeout=10)
 
         # For small files, single command is fine
