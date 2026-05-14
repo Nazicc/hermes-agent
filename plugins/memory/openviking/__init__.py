@@ -292,6 +292,34 @@ REMEMBER_SCHEMA = {
     },
 }
 
+MEMORY_RECALL_SCHEMA = {
+    "name": "memory_recall",
+    "description": (
+        "Unified layered memory retrieval. Searches L0 (injected context) → "
+        "L2 (OpenViking long-term) → Hindsight (graph reasoning) → "
+        "L1 (working memory) → L3 (evolution signals). "
+        "Returns deduplicated, ranked results with source layer tags."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string", "description": "Natural-language search query."},
+            "max_results": {
+                "type": "integer",
+                "description": "Max total results across all layers (default: 10).",
+            },
+            "layers": {
+                "type": "string",
+                "description": (
+                    "Comma-separated layers to search (default: 'L2,hindsight,L3'). "
+                    "Options: L0, L2, hindsight, L1, L3, all."
+                ),
+            },
+        },
+        "required": ["query"],
+    },
+}
+
 ADD_RESOURCE_SCHEMA = {
     "name": "viking_add_resource",
     "description": (
@@ -396,6 +424,10 @@ class OpenVikingMemoryProvider(MemoryProvider):
         self._prefetch_result = ""
         self._prefetch_lock = threading.Lock()
         self._prefetch_thread: Optional[threading.Thread] = None
+        # --- Custom: Hindsight L2 graph reasoning layer ---
+        self._HINDSIGHT_URL = os.environ.get("HINDSIGHT_URL", "http://localhost:8989")
+        self._HINDSIGHT_BANK = os.environ.get("HINDSIGHT_BANK", "hermes-agent")
+        self._HINDSIGHT_MIN_MSG_LEN = int(os.environ.get("HINDSIGHT_MIN_MSG_LEN", "50"))
 
     @property
     def name(self) -> str:
@@ -600,6 +632,9 @@ class OpenVikingMemoryProvider(MemoryProvider):
         except Exception as e:
             logger.warning("OpenViking session commit failed: %s", e)
 
+        # --- Custom: Sync to Hindsight (L2 graph reasoning layer) ---
+        self._sync_to_hindsight(messages)
+
     def on_memory_write(self, action: str, target: str, content: str) -> None:
         """Mirror built-in memory writes to OpenViking as explicit memories."""
         if not self._client or action != "add" or not content:
@@ -626,7 +661,7 @@ class OpenVikingMemoryProvider(MemoryProvider):
         t.start()
 
     def get_tool_schemas(self) -> List[Dict[str, Any]]:
-        return [SEARCH_SCHEMA, READ_SCHEMA, BROWSE_SCHEMA, REMEMBER_SCHEMA, ADD_RESOURCE_SCHEMA]
+        return [SEARCH_SCHEMA, READ_SCHEMA, BROWSE_SCHEMA, REMEMBER_SCHEMA, ADD_RESOURCE_SCHEMA, MEMORY_RECALL_SCHEMA]
 
     def handle_tool_call(self, tool_name: str, args: dict, **kwargs) -> str:
         if not self._client:
@@ -643,6 +678,8 @@ class OpenVikingMemoryProvider(MemoryProvider):
                 return self._tool_remember(args)
             elif tool_name == "viking_add_resource":
                 return self._tool_add_resource(args)
+            elif tool_name == "memory_recall":
+                return self._tool_memory_recall(args)
             return tool_error(f"Unknown tool: {tool_name}")
         except Exception as e:
             return tool_error(str(e))
@@ -927,6 +964,201 @@ class OpenVikingMemoryProvider(MemoryProvider):
             "root_uri": result.get("root_uri", ""),
             "message": "Resource queued for processing. Use viking_search after a moment to find it.",
         }, ensure_ascii=False)
+
+
+    # --- Custom: Unified layered memory retrieval (P4) ---
+    def _tool_memory_recall(self, args: dict) -> str:
+        """Unified layered memory retrieval: L0 → L2 → Hindsight → L1 → L3.
+
+        L0: Injected context (already in prompt, skip).
+        L2: OpenViking semantic search (primary long-term).
+        Hindsight: Graph reasoning + reflect (entity/relationship insights).
+        L1: Working memory (current session, skip — already in context).
+        L3: Evolution signals from evolution.db.
+        """
+        query = args.get("query", "")
+        if not query:
+            return tool_error("query is required")
+
+        max_results = args.get("max_results", 10)
+        layers_str = args.get("layers", "L2,hindsight,L3")
+        if layers_str.strip().lower() == "all":
+            active_layers = {"L0", "L2", "hindsight", "L1", "L3"}
+        else:
+            active_layers = {l.strip() for l in layers_str.split(",") if l.strip()}
+
+        all_results: List[Dict[str, Any]] = []
+        seen_uris = set()
+
+        # --- L2: OpenViking semantic search ---
+        if "L2" in active_layers and self._client:
+            try:
+                payload = {"query": query, "top_k": max_results}
+                resp = self._client.post("/api/v1/search/find", payload)
+                result = resp.get("result", {})
+                for ctx_type in ("memories", "resources"):
+                    for item in result.get(ctx_type, [])[:max_results]:
+                        uri = item.get("uri", "")
+                        if uri in seen_uris:
+                            continue
+                        seen_uris.add(uri)
+                        all_results.append({
+                            "layer": "L2",
+                            "source": ctx_type.rstrip("s"),
+                            "uri": uri,
+                            "score": round(item.get("score", 0), 3),
+                            "snippet": item.get("abstract", "")[:300],
+                        })
+            except Exception as e:
+                logger.debug("memory_recall L2 failed: %s", e)
+
+        # --- Hindsight: recall + reflect ---
+        if "hindsight" in active_layers:
+            try:
+                httpx = _lazy_httpx()
+                # Recall (vector + BM25 + graph)
+                resp = httpx.post(
+                    f"{self._HINDSIGHT_URL}/v1/default/banks/{self._HINDSIGHT_BANK}/recall",
+                    json={"query": query, "max_results": min(max_results, 5)},
+                    timeout=15.0,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    for mem in data.get("results", data.get("memories", []))[:5]:
+                        content = mem.get("content", mem.get("text", ""))
+                        uri = f"hindsight:{mem.get('id', '')}"
+                        if uri in seen_uris:
+                            continue
+                        seen_uris.add(uri)
+                        all_results.append({
+                            "layer": "hindsight",
+                            "source": "graph-recall",
+                            "uri": uri,
+                            "score": round(mem.get("score", 0), 3),
+                            "snippet": content[:300],
+                        })
+                # Reflect (deep reasoning — only if few L2 results)
+                if len(all_results) < 3:
+                    try:
+                        resp2 = httpx.post(
+                            f"{self._HINDSIGHT_URL}/v1/default/banks/{self._HINDSIGHT_BANK}/reflect",
+                            json={"query": query, "budget": "low", "max_tokens": 512},
+                            timeout=20.0,
+                        )
+                        if resp2.status_code == 200:
+                            reflection = resp2.json()
+                            insight = reflection.get("insight", reflection.get("reflection", ""))
+                            if insight and len(str(insight)) > 20:
+                                all_results.append({
+                                    "layer": "hindsight",
+                                    "source": "reflect",
+                                    "uri": "hindsight:reflect",
+                                    "score": 0.0,
+                                    "snippet": str(insight)[:500],
+                                })
+                    except Exception as e:
+                        logger.debug("memory_recall Hindsight reflect failed: %s", e)
+            except Exception as e:
+                logger.debug("memory_recall Hindsight failed: %s", e)
+
+        # --- L3: Evolution signals ---
+        if "L3" in active_layers:
+            try:
+                db_path = os.path.expanduser(
+                    "~/.hermes/simplemem_evolution/evolution.db"
+                )
+                if os.path.exists(db_path):
+                    import sqlite3
+                    conn = sqlite3.connect(db_path)
+                    conn.row_factory = sqlite3.Row
+                    cur = conn.cursor()
+                    cur.execute(
+                        "SELECT id, type, timestamp, summary FROM evolution_events "
+                        "WHERE summary LIKE ? ORDER BY timestamp DESC LIMIT ?",
+                        (f"%{query}%", max_results),
+                    )
+                    for row in cur.fetchall():
+                        uri = f"evolution:{row['id']}"
+                        if uri in seen_uris:
+                            continue
+                        seen_uris.add(uri)
+                        all_results.append({
+                            "layer": "L3",
+                            "source": "evolution",
+                            "uri": uri,
+                            "score": 0.0,
+                            "snippet": (row["summary"] or "")[:300],
+                        })
+                    conn.close()
+            except Exception as e:
+                logger.debug("memory_recall L3 failed: %s", e)
+
+        if not all_results:
+            return "No results found across any memory layer."
+
+        # Format output
+        lines = []
+        for r in all_results[:max_results]:
+            lines.append(
+                f"[{r['layer']}] {r['uri']} (score={r['score']})\n{r['snippet']}"
+            )
+        return "\n---\n".join(lines)
+
+    def _sync_to_hindsight(self, messages: List[Dict[str, Any]]) -> None:
+        """Sync substantive session messages to Hindsight for graph reasoning.
+
+        Filters out tool calls, system messages, and short exchanges.
+        Runs in a daemon thread to avoid blocking session cleanup.
+        """
+        items = []
+        for msg in messages:
+            role = msg.get("role", "")
+            if role not in ("user", "assistant"):
+                continue
+            parts = msg.get("parts", [])
+            text_parts = []
+            for p in parts:
+                if isinstance(p, dict) and p.get("type") == "text":
+                    t = p.get("text", "").strip()
+                    if len(t) >= self._HINDSIGHT_MIN_MSG_LEN:
+                        text_parts.append(t)
+            if not text_parts:
+                content = msg.get("content", "")
+                if isinstance(content, str) and len(content.strip()) >= self._HINDSIGHT_MIN_MSG_LEN:
+                    text_parts.append(content.strip())
+            for t in text_parts:
+                items.append({
+                    "content": f"[{role}] {t[:500]}",
+                    "context": f"session:{self._session_id}",
+                    "tags": ["session-sync", "auto"],
+                })
+
+        if not items:
+            return
+
+        def _do_sync():
+            try:
+                httpx = _lazy_httpx()
+                resp = httpx.post(
+                    f"{self._HINDSIGHT_URL}/v1/default/banks/{self._HINDSIGHT_BANK}/memories",
+                    json={"items": items[:20]},
+                    timeout=30.0,
+                )
+                if resp.status_code < 300:
+                    logger.info(
+                        "Hindsight sync: %d items from session %s",
+                        min(len(items), 20), self._session_id,
+                    )
+                else:
+                    logger.debug(
+                        "Hindsight sync failed (%d): %s",
+                        resp.status_code, resp.text[:200],
+                    )
+            except Exception as e:
+                logger.debug("Hindsight sync error (non-fatal): %s", e)
+
+        t = threading.Thread(target=_do_sync, daemon=True, name="hindsight-sync")
+        t.start()
 
 
 # ---------------------------------------------------------------------------
