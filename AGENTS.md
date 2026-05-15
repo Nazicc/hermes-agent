@@ -2,6 +2,29 @@
 
 Instructions for AI coding assistants and developers working on the hermes-agent codebase.
 
+## ⚖️ Constitution
+
+**This project is governed by a constitution.** The canonical file is `.hermes/memory/constitution.md`.
+It defines 7 non-negotiable principles that gate all development work:
+
+| # | Principle | Gate Trigger |
+|---|-----------|-------------|
+| I | Session Completeness | Session end → push required |
+| II | Test-First | Implementation start → tests required |
+| III | Memory Hygiene | Session start/end → audit memories |
+| IV | Skill Reuse | Skill create → search first, patch preferred |
+| V | Analysis-Before-Action | Complex tasks → plan before code |
+| VI | Simplicity (YAGNI) | New deps/abstractions → justify |
+| VII | Observability | Session end → log decisions/changes |
+
+Load `constitution-enforcer` at the start of every session and before any non-trivial
+development task. Gate checks are mandatory — not suggestions. Violations of principles
+I, II, or V are blocking (execution stops). Violations of III, IV, VI, VII are advisory
+(warning + recommendation).
+
+**Exception path:** emergency hotfixes, user override, or explicit principle exemptions.
+Record all waivers in session memory.
+
 ## Development Environment
 
 ```bash
