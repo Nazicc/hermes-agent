@@ -69,14 +69,15 @@ mini-swe-agent/
 .nix-stamps/
 result
 website/static/api/skills-index.json
-models-dev-upstream/
-
-# OpenWolf runtime state (prevent accidental commits of generated files)
+hermes-*/*
+hermes_memory_data/
+.hermes/scripts/
 .wolf/daemon.log
 .wolf/cron-state.json
 .wolf/buglog.json
 .wolf/suggestions.json
 .wolf/token-ledger.json
+.wolf/anatomy.md
 
 # Hermes runtime data (contains .env with API keys)
 hermes_memory_data/
