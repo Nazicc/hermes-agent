@@ -1145,53 +1145,18 @@ def build_skills_system_prompt(
             except Exception as e:
                 logger.debug("Error reading external skill %s: %s", skill_file, e)
 
-        # External category descriptions
-        for desc_file in iter_skill_index_files(ext_dir, "DESCRIPTION.md"):
-            try:
-                content = desc_file.read_text(encoding="utf-8")
-                fm, _ = parse_frontmatter(content)
-                cat_desc = fm.get("description")
-                if not cat_desc:
-                    continue
-                rel = desc_file.relative_to(ext_dir)
-                cat = "/".join(rel.parts[:-1]) if len(rel.parts) > 1 else "general"
-                category_descriptions.setdefault(cat, str(cat_desc).strip().strip("'\""))
-            except Exception as e:
-                logger.debug("Could not read external skill description %s: %s", desc_file, e)
-
-    if not skills_by_category:
-        result = ""
-    else:
-        index_lines = []
-        for category in sorted(skills_by_category.keys()):
-            cat_desc = category_descriptions.get(category, "")
-            if cat_desc:
-                index_lines.append(f"  {category}: {cat_desc}")
-            else:
-                index_lines.append(f"  {category}:")
-            # Deduplicate and sort skills within each category
-            seen = set()
-            for name, desc in sorted(skills_by_category[category], key=lambda x: x[0]):
-                if name in seen:
-                    continue
-                seen.add(name)
-                if desc:
-                    index_lines.append(f"    - {name}: {desc}")
-                else:
-                    index_lines.append(f"    - {name}")
-
-        result = (
-            "## Skills (mandatory)\n"
-            "Before replying, scan the skills below. If a skill matches or is even partially relevant "
-            "to your task, you MUST load it with skill_view(name) and follow its instructions. "
-            "Err on the side of loading — it is always better to have context you don't need "
-            "than to miss critical steps, pitfalls, or established workflows. "
+    # With lazy loading, always show the instruction so the LLM knows to use
+    # skills_list — which handles runtime filtering by platform, disabled list,
+    # tools/toolsets, etc.  An empty result here is confusing and may cause the
+    # LLM to never discover skills at all.
+    result = (
+        "## Skills (mandatory)\n"
+        "Before each turn, use skills_list to discover available skills, then load "
+            "relevant ones with skill_view(name). Follow loaded skill instructions exactly.\n"
             "Skills contain specialized knowledge — API endpoints, tool-specific commands, "
-            "and proven workflows that outperform general-purpose approaches. Load the skill "
-            "even if you think you could handle the task with basic tools like web_search or terminal. "
-            "Skills also encode the user's preferred approach, conventions, and quality standards "
-            "for tasks like code review, planning, and testing — load them even for tasks you "
-            "already know how to do, because the skill defines how it should be done here.\n"
+            "and proven workflows that outperform general-purpose approaches.\n"
+            "Err on the side of loading — it is always better to have context you don't need "
+            "than to miss critical steps, pitfalls, or established workflows.\n"
             "Whenever the user asks you to configure, set up, install, enable, disable, modify, "
             "or troubleshoot Hermes Agent itself — its CLI, config, models, providers, tools, "
             "skills, voice, gateway, plugins, or any feature — load the `hermes-agent` skill "
@@ -1202,11 +1167,8 @@ def build_skills_system_prompt(
             "If a skill you loaded was missing steps, had wrong commands, or needed "
             "pitfalls you discovered, update it before finishing.\n"
             "\n"
-            "<available_skills>\n"
-            + "\n".join(index_lines) + "\n"
-            "</available_skills>\n"
-            "\n"
-            "Only proceed without loading a skill if genuinely none are relevant to the task."
+            "Only proceed without loading a skill if genuinely none are "
+            "relevant to the task."
         )
 
     # ── Store in LRU cache ────────────────────────────────────────────
@@ -1352,79 +1314,101 @@ def _load_hermes_md(cwd_path: Path) -> str:
         return ""
 
 
+def _context_file_pointer_md(path: Path, label: str, hint: str = "") -> str:
+    """Generate a lightweight pointer to a context file for progressive disclosure.
+
+    Instead of injecting the full file content (which can cost thousands of tokens),
+    return a short instruction telling the agent where the file lives and how to load
+    it on demand — the same pattern used for skills.
+
+    Args:
+        path: Absolute path to the context file.
+        label: Display label for the context block (e.g. "AGENTS.md").
+        hint: Optional one-line description of what the file contains.
+    """
+    hint_line = f"\n{hint}\n" if hint else ""
+    return (
+        f"## {label}\n"
+        f"{hint_line}"
+        f"Context file available at `{path}`. "
+        f"Load it with read_file('{path}') when you need its content.\n"
+    )
+
+
 def _load_agents_md(cwd_path: Path) -> str:
-    """AGENTS.md — top-level only (no recursive walk)."""
+    """AGENTS.md — top-level only (no recursive walk).
+
+    Returns a pointer to the file (progressive disclosure) instead of
+    injecting full content. The agent loads it on demand via read_file().
+    """
     for name in ["AGENTS.md", "agents.md"]:
         candidate = cwd_path / name
         if candidate.exists():
-            try:
-                content = candidate.read_text(encoding="utf-8").strip()
-                if content:
-                    content = _scan_context_content(content, name)
-                    result = f"## {name}\n\n{content}"
-                    return _truncate_content(result, "AGENTS.md")
-            except Exception as e:
-                logger.debug("Could not read %s: %s", candidate, e)
+            return _context_file_pointer_md(
+                candidate, name,
+                hint="Development guide — project structure, architecture, policies.",
+            )
     return ""
 
 
 def _load_claude_md(cwd_path: Path) -> str:
-    """CLAUDE.md / claude.md — cwd only."""
+    """CLAUDE.md / claude.md — cwd only.
+
+    Returns a pointer to the file (progressive disclosure) instead of
+    injecting full content. The agent loads it on demand via read_file().
+    """
     for name in ["CLAUDE.md", "claude.md"]:
         candidate = cwd_path / name
         if candidate.exists():
-            try:
-                content = candidate.read_text(encoding="utf-8").strip()
-                if content:
-                    content = _scan_context_content(content, name)
-                    result = f"## {name}\n\n{content}"
-                    return _truncate_content(result, "CLAUDE.md")
-            except Exception as e:
-                logger.debug("Could not read %s: %s", candidate, e)
+            return _context_file_pointer_md(
+                candidate, name,
+                hint="Development guide (Claude format).",
+            )
     return ""
 
 
 def _load_cursorrules(cwd_path: Path) -> str:
-    """.cursorrules + .cursor/rules/*.mdc — cwd only."""
-    cursorrules_content = ""
+    """.cursorrules + .cursor/rules/*.mdc — cwd only.
+
+    Returns pointers to the files (progressive disclosure) instead of
+    injecting full content. The agent loads them on demand via read_file().
+    """
+    parts = []
     cursorrules_file = cwd_path / ".cursorrules"
     if cursorrules_file.exists():
-        try:
-            content = cursorrules_file.read_text(encoding="utf-8").strip()
-            if content:
-                content = _scan_context_content(content, ".cursorrules")
-                cursorrules_content += f"## .cursorrules\n\n{content}\n\n"
-        except Exception as e:
-            logger.debug("Could not read .cursorrules: %s", e)
+        parts.append(_context_file_pointer_md(
+            cursorrules_file, ".cursorrules",
+            hint="Cursor IDE rules.",
+        ))
 
     cursor_rules_dir = cwd_path / ".cursor" / "rules"
     if cursor_rules_dir.exists() and cursor_rules_dir.is_dir():
         mdc_files = sorted(cursor_rules_dir.glob("*.mdc"))
         for mdc_file in mdc_files:
-            try:
-                content = mdc_file.read_text(encoding="utf-8").strip()
-                if content:
-                    content = _scan_context_content(content, f".cursor/rules/{mdc_file.name}")
-                    cursorrules_content += f"## .cursor/rules/{mdc_file.name}\n\n{content}\n\n"
-            except Exception as e:
-                logger.debug("Could not read %s: %s", mdc_file, e)
+            parts.append(_context_file_pointer_md(
+                mdc_file, f".cursor/rules/{mdc_file.name}",
+            ))
 
-    if not cursorrules_content:
+    if not parts:
         return ""
-    return _truncate_content(cursorrules_content, ".cursorrules")
+    return "\n".join(parts)
 
 
 def build_context_files_prompt(cwd: Optional[str] = None, skip_soul: bool = False) -> str:
-    """Discover and load context files for the system prompt.
+    """Discover context files and inject pointers for progressive disclosure.
+
+    Instead of injecting full file content (which can cost thousands of tokens),
+    most context files now use progressive disclosure — only a lightweight pointer
+    is injected into the system prompt. The agent loads full content on demand
+    via read_file().
 
     Priority (first found wins — only ONE project context type is loaded):
-      1. .hermes.md / HERMES.md  (walk to git root)
-      2. AGENTS.md / agents.md   (cwd only)
-      3. CLAUDE.md / claude.md   (cwd only)
-      4. .cursorrules / .cursor/rules/*.mdc  (cwd only)
+      1. .hermes.md / HERMES.md  (walk to git root — loaded in FULL)
+      2. AGENTS.md / agents.md   (cwd only — PROGRESSIVE DISCLOSURE pointer)
+      3. CLAUDE.md / claude.md   (cwd only — PROGRESSIVE DISCLOSURE pointer)
+      4. .cursorrules /.cursor/rules/*.mdc (cwd only — PROGRESSIVE DISCLOSURE pointer)
 
     SOUL.md from HERMES_HOME is independent and always included when present.
-    Each context source is capped at 20,000 chars.
 
     When *skip_soul* is True, SOUL.md is not included here (it was already
     loaded via ``load_soul_md()`` for the identity slot).
@@ -1453,4 +1437,4 @@ def build_context_files_prompt(cwd: Optional[str] = None, skip_soul: bool = Fals
 
     if not sections:
         return ""
-    return "# Project Context\n\nThe following project context files have been loaded and should be followed:\n\n" + "\n".join(sections)
+    return "# Project Context\n\nThe following project context files are available. Full content is loaded on demand via read_file() — use progressive disclosure to control token usage.\n\n" + "\n".join(sections)
