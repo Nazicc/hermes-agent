@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Agent Memory Flow</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot { width: 12px; height: 12px; background: #a78bfa; border-radius: 50%; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1050px; display: block; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-top: 2rem; }
+    .card { background: rgba(15, 23, 42, 0.5); border-radius: 0.75rem; border: 1px solid #1e293b; padding: 1.25rem; }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.rose { background: #fb7185; }
+    .card-dot.amber { background: #fbbf24; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Hermes Agent — Memory Flow Architecture</h1>
+      </div>
+      <p class="subtitle">Layered memory system: L0 injected context → L3 evolution signals, unified by memory_recall()</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1100 860">
+        <defs>
+          <marker id="arrow-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrow-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrow-violet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa" />
+          </marker>
+          <marker id="arrow-rose" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fb7185" />
+          </marker>
+          <marker id="arrow-amber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- ====== Title ====== -->
+        <text x="550" y="30" fill="white" font-size="14" font-weight="700" text-anchor="middle">Hermes Agent Layered Memory System</text>
+        <text x="550" y="48" fill="#94a3b8" font-size="9" text-anchor="middle">4-layer progressive persistence · dual-path ingestion · unified recall</text>
+
+        <!-- ========== L0: INJECTED CONTEXT ========== -->
+        <rect x="50" y="70" width="1000" height="140" rx="12" fill="rgba(8, 51, 68, 0.08)" stroke="#22d3ee" stroke-width="2"/>
+        <rect x="50" y="70" width="160" height="28" rx="6" fill="#22d3ee"/>
+        <text x="130" y="89" fill="#020617" font-size="12" font-weight="700" text-anchor="middle">L0 — INJECTED CONTEXT</text>
+
+        <!-- Memory block -->
+        <rect x="80" y="110" width="220" height="45" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="190" y="130" fill="white" font-size="10" font-weight="600" text-anchor="middle">MEMORY.md block</text>
+        <text x="190" y="145" fill="#94a3b8" font-size="7" text-anchor="middle">2,200 chars · durable facts</text>
+
+        <rect x="320" y="110" width="220" height="45" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="430" y="130" fill="white" font-size="10" font-weight="600" text-anchor="middle">USER.md profile</text>
+        <text x="430" y="145" fill="#94a3b8" font-size="7" text-anchor="middle">1,375 chars · identity/projects</text>
+
+        <rect x="560" y="110" width="220" height="45" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="670" y="130" fill="white" font-size="10" font-weight="600" text-anchor="middle">AGENTS.md pointer</text>
+        <text x="670" y="145" fill="#94a3b8" font-size="7" text-anchor="middle">~930 chars · Progressive Disclosure</text>
+
+        <rect x="800" y="110" width="220" height="45" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="910" y="130" fill="white" font-size="10" font-weight="600" text-anchor="middle">System Prompt</text>
+        <text x="910" y="145" fill="#94a3b8" font-size="7" text-anchor="middle">Skills injection + tools</text>
+
+        <text x="80" y="185" fill="#94a3b8" font-size="8">Injected at session start · every turn · highest priority · token-heavy</text>
+        <text x="510" y="195" fill="#22d3ee" font-size="7" text-anchor="middle">memory tool (add/replace/remove) → prompt_builder commits every session</text>
+
+        <!-- L0 → L2 arrow -->
+        <path d="M 390 160 L 390 240 Q 390 255 405 255 L 435 255" fill="none" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#arrow-cyan)"/>
+        <text x="395" y="210" fill="#22d3ee" font-size="7">L0→L2 dual-path sync</text>
+
+        <!-- ========== L1: WORKING MEMORY ========== -->
+        <rect x="50" y="240" width="1000" height="100" rx="12" fill="rgba(6, 78, 59, 0.08)" stroke="#34d399" stroke-width="2"/>
+        <rect x="50" y="240" width="180" height="28" rx="6" fill="#34d399"/>
+        <text x="140" y="259" fill="#020617" font-size="12" font-weight="700" text-anchor="middle">L1 — WORKING MEMORY</text>
+
+        <rect x="80" y="278" width="180" height="45" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="170" y="296" fill="white" font-size="10" font-weight="600" text-anchor="middle">Session State</text>
+        <text x="170" y="312" fill="#94a3b8" font-size="7" text-anchor="middle">Conversation history</text>
+
+        <rect x="280" y="278" width="180" height="45" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="370" y="296" fill="white" font-size="10" font-weight="600" text-anchor="middle">Tool Results</text>
+        <text x="370" y="312" fill="#94a3b8" font-size="7" text-anchor="middle">File ops · search · terminal</text>
+
+        <rect x="480" y="278" width="180" height="45" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="570" y="296" fill="white" font-size="10" font-weight="600" text-anchor="middle">Context Compression</text>
+        <text x="570" y="312" fill="#94a3b8" font-size="7" text-anchor="middle">Trajectory summarization</text>
+
+        <rect x="680" y="278" width="180" height="45" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="770" y="296" fill="white" font-size="10" font-weight="600" text-anchor="middle">SOUL.md</text>
+        <text x="770" y="312" fill="#94a3b8" font-size="7" text-anchor="middle">Persona · voice · style</text>
+
+        <rect x="880" y="278" width="140" height="45" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="950" y="296" fill="white" font-size="10" font-weight="600" text-anchor="middle">config.yaml</text>
+        <text x="950" y="312" fill="#94a3b8" font-size="7" text-anchor="middle">Runtime settings</text>
+
+        <text x="80" y="328" fill="#94a3b8" font-size="8">hermes_memory_data/ · ephemeral per-session · compressed on context overflow</text>
+
+        <!-- L1 → L2 arrow -->
+        <path d="M 550 340 L 550 410" fill="none" stroke="#34d399" stroke-width="2" marker-end="url(#arrow-emerald)"/>
+        <text x="555" y="378" fill="#34d399" font-size="7">session_search persists</text>
+
+        <!-- ========== L2: OPENVIKING KB ========== -->
+        <rect x="50" y="410" width="1000" height="160" rx="12" fill="rgba(76, 29, 149, 0.08)" stroke="#a78bfa" stroke-width="2"/>
+        <rect x="50" y="410" width="200" height="28" rx="6" fill="#a78bfa"/>
+        <text x="150" y="429" fill="white" font-size="12" font-weight="700" text-anchor="middle">L2 — OPENVIKING KNOWLEDGE BASE</text>
+
+        <!-- Dual input arrows -->
+        <line x1="180" y1="210" x2="180" y2="420" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="5,5"/>
+        <line x1="920" y1="340" x2="920" y2="420" stroke="#34d399" stroke-width="1.5" stroke-dasharray="5,5"/>
+        <text x="140" y="318" fill="#22d3ee" font-size="6">L0 dual-path</text>
+        <text x="880" y="382" fill="#34d399" font-size="6">L1 persist</text>
+
+        <!-- Core tools -->
+        <rect x="80" y="450" width="175" height="50" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="167" y="470" fill="white" font-size="10" font-weight="600" text-anchor="middle">viking_search</text>
+        <text x="167" y="487" fill="#94a3b8" font-size="7" text-anchor="middle">Semantic · fast/deep modes</text>
+
+        <rect x="275" y="450" width="175" height="50" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="362" y="470" fill="white" font-size="10" font-weight="600" text-anchor="middle">viking_read</text>
+        <text x="362" y="487" fill="#94a3b8" font-size="7" text-anchor="middle">abstract/overview/full</text>
+
+        <rect x="470" y="450" width="175" height="50" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="557" y="470" fill="white" font-size="10" font-weight="600" text-anchor="middle">viking_remember</text>
+        <text x="557" y="487" fill="#94a3b8" font-size="7" text-anchor="middle">Store facts · categorize</text>
+
+        <rect x="665" y="450" width="175" height="50" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="752" y="470" fill="white" font-size="10" font-weight="600" text-anchor="middle">viking_add_resource</text>
+        <text x="752" y="487" fill="#94a3b8" font-size="7" text-anchor="middle">URLs · docs · files · git</text>
+
+        <rect x="860" y="450" width="160" height="50" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="940" y="470" fill="white" font-size="10" font-weight="600" text-anchor="middle">viking_browse</text>
+        <text x="940" y="487" fill="#94a3b8" font-size="7" text-anchor="middle">tree/list/stat</text>
+
+        <text x="80" y="520" fill="#94a3b8" font-size="8">Persistent · semantic search · structured URI space (viking://) · entity/event/pattern/ preference categories</text>
+        <text x="80" y="532" fill="#94a3b8" font-size="8">user/memories/ · resources/docs/ · resources/repos/ · cases/ · patterns/</text>
+        <text x="775" y="555" fill="#a78bfa" font-size="7" text-anchor="middle">memory tool → viking_remember dual-write</text>
+
+        <!-- Hindsight Bridge -->
+        <path d="M 550 570 L 550 600 Q 550 615 535 615 L 500 630" fill="none" stroke="#a78bfa" stroke-width="2" stroke-dasharray="4,4" marker-end="url(#arrow-violet)"/>
+
+        <!-- ========== HINDSIGHT: GRAPH REASONING ========== -->
+        <rect x="50" y="640" width="480" height="130" rx="12" fill="rgba(136, 19, 55, 0.08)" stroke="#fb7185" stroke-width="2"/>
+        <rect x="50" y="640" width="250" height="28" rx="6" fill="#fb7185"/>
+        <text x="175" y="659" fill="white" font-size="12" font-weight="700" text-anchor="middle">HINDSIGHT — GRAPH REASONING</text>
+
+        <rect x="80" y="680" width="140" height="45" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="150" y="698" fill="white" font-size="9" font-weight="600" text-anchor="middle">mcp_hindsight_retain</text>
+        <text x="150" y="714" fill="#94a3b8" font-size="7" text-anchor="middle">Store with tags</text>
+
+        <rect x="240" y="680" width="130" height="45" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="305" y="698" fill="white" font-size="9" font-weight="600" text-anchor="middle">hindsight_recall</text>
+        <text x="305" y="714" fill="#94a3b8" font-size="7" text-anchor="middle">Multi-strategy</text>
+
+        <rect x="390" y="680" width="110" height="45" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="445" y="698" fill="white" font-size="9" font-weight="600" text-anchor="middle">hindsight_reflect</text>
+        <text x="445" y="714" fill="#94a3b8" font-size="7" text-anchor="middle">Synthesize</text>
+
+        <text x="80" y="745" fill="#94a3b8" font-size="8">Semantic + BM25 + graph + temporal retrieval · Mental models · Experience/fact types</text>
+        <text x="80" y="758" fill="#94a3b8" font-size="8">Docker container · PostgreSQL/pgvector · bank isolation · reflect() for deep synthesis</text>
+
+        <!-- ========== L3: EVOLUTION SIGNALS ========== -->
+        <rect x="570" y="640" width="480" height="130" rx="12" fill="rgba(251, 191, 36, 0.08)" stroke="#fbbf24" stroke-width="2"/>
+        <rect x="570" y="640" width="240" height="28" rx="6" fill="#fbbf24"/>
+        <text x="690" y="659" fill="#020617" font-size="12" font-weight="700" text-anchor="middle">L3 — EVOLUTION SIGNALS</text>
+
+        <rect x="600" y="680" width="140" height="45" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="670" y="698" fill="white" font-size="9" font-weight="600" text-anchor="middle">Skill auto-create</text>
+        <text x="670" y="714" fill="#94a3b8" font-size="7" text-anchor="middle">Complex task → skill</text>
+
+        <rect x="760" y="680" width="140" height="45" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="830" y="698" fill="white" font-size="9" font-weight="600" text-anchor="middle">Quality scoring</text>
+        <text x="830" y="714" fill="#94a3b8" font-size="7" text-anchor="middle">skills-quality MCP</text>
+
+        <rect x="920" y="680" width="100" height="45" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="970" y="698" fill="white" font-size="9" font-weight="600" text-anchor="middle">Nudge system</text>
+        <text x="970" y="714" fill="#94a3b8" font-size="7" text-anchor="middle">Auto-improve</text>
+
+        <text x="600" y="745" fill="#94a3b8" font-size="8">Self-evolution pipeline · Skill quality tiers (stub→developing→good→excellent)</text>
+        <text x="600" y="758" fill="#94a3b8" font-size="8">Cron job (daily 02:00) · evolver/ · hermes-agent-self-evolution/</text>
+
+        <!-- ========== UNIFIED RECALL ========== -->
+        <rect x="200" y="790" width="700" height="55" rx="10" fill="rgba(34, 211, 238, 0.1)" stroke="#22d3ee" stroke-width="2"/>
+        <text x="550" y="810" fill="#22d3ee" font-size="13" font-weight="700" text-anchor="middle">memory_recall(query) — Unified Multi-Layer Retrieval Engine</text>
+        <text x="550" y="830" fill="#94a3b8" font-size="8" text-anchor="middle">L0 injected context → L2 OpenViking → Hindsight graph → L1 working memory → L3 evolution signals</text>
+        <text x="550" y="842" fill="#64748b" font-size="7" text-anchor="middle">Deduplicated · Ranked by relevance · Source-layer tagged · Fallback across layers</text>
+
+        <!-- Legend -->
+        <text x="50" y="842" fill="white" font-size="10" font-weight="600">Legend</text>
+        <rect x="50" y="850" width="14" height="8" rx="2" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="68" y="857" fill="#94a3b8" font-size="7">L0 Injected</text>
+        <rect x="130" y="850" width="14" height="8" rx="2" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1"/>
+        <text x="148" y="857" fill="#94a3b8" font-size="7">L1 Working</text>
+        <rect x="215" y="850" width="14" height="8" rx="2" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="233" y="857" fill="#94a3b8" font-size="7">L2 OpenViking</text>
+        <rect x="305" y="850" width="14" height="8" rx="2" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1"/>
+        <text x="323" y="857" fill="#94a3b8" font-size="7">Hindsight</text>
+        <rect x="380" y="850" width="14" height="8" rx="2" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="398" y="857" fill="#94a3b8" font-size="7">L3 Evolution</text>
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot cyan"></div>
+          <h3>Write Paths</h3>
+        </div>
+        <ul>
+          <li>• memory tool → L0 (MEMORY.md) + L2 dual-write</li>
+          <li>• viking_remember → L2 (OpenViking KB)</li>
+          <li>• mcp_hindsight_retain → Hindsight graph</li>
+          <li>• session_search → L1 queries across sessions</li>
+          <li>• evolve_server → L3 auto-skill creation</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot violet"></div>
+          <h3>Read Paths</h3>
+        </div>
+        <ul>
+          <li>• L0: auto-injected every turn (no tool call)</li>
+          <li>• memory_recall → unified L0-L3 query</li>
+          <li>• viking_search/read → L2 semantic retrieval</li>
+          <li>• mcp_hindsight_recall → graph multi-strategy</li>
+          <li>• session_search → FTS5 + LLM summarization</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot rose"></div>
+          <h3>Key Architecture Decisions</h3>
+        </div>
+        <ul>
+          <li>• L0→L2 dual-path: memory writes to both instantly</li>
+          <li>• Progressive Disclosure: AGENTS.md → pointer</li>
+          <li>• L2 permanent, L1 ephemeral per-session</li>
+          <li>• Hindsight for graph patterns, not raw storage</li>
+          <li>• memory_recall() deduplicates across layers</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot amber"></div>
+          <h3>Memory Lifecycle</h3>
+        </div>
+        <ul>
+          <li>• Session start: L0 injected · L1 fresh · L2 warm</li>
+          <li>• During session: memory tool writes · viking_remember</li>
+          <li>• Context compression: L1 summarized</li>
+          <li>• Session end: session_search persisted to L1 logs</li>
+          <li>• Cron: daily evolution cycle (02:00) pushes L3</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">
+      Hermes Agent · Layered Memory System · L0 → L1 → L2 → Hindsight → L3 · unified memory_recall()
+    </p>
+  </div>
+</body>
+</html>
