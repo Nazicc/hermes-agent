@@ -17,7 +17,8 @@
 ## Architecture
 
 <p align="center">
-  <a href="docs/diagrams/hermes-architecture.html"><img src="docs/diagrams/hermes-architecture.png" alt="Hermes Agent Architecture" width="90%"></a>
+  <a href="docs/diagrams/hermes-architecture.html"><b>📐 Open Architecture Diagram →</b></a><br>
+  <em>(dark-themed SVG — open in browser)</em>
 </p>
 
 Hermes Agent is built in layers:
@@ -34,7 +35,7 @@ Hermes Agent is built in layers:
 - **Delegation** — Subagent spawning with isolated contexts, parallel workstreams, ACP transports (Claude Code, Codex, Codebuff, OpenCode).
 - **Cron Scheduler** — Natural-language scheduled tasks with platform delivery, watchdog scripts, chain jobs.
 - **MCP Integration** — Native MCP client + mcporter bridge. Built-in servers: browser-harness, deepcode, deeptutor, deerflow, sirchmunk, beads, hindsight, skills-quality.
-- **Evolver** — Self-evolution pipeline: skill auto-creation, quality scoring (stub→developing→good→excellent), periodic nudge system.
+- **Evolver** — Self-evolution pipeline: DSPy MIPROv2 optimizer, skill auto-creation, quality scoring (stub→developing→good→excellent), periodic nudge system. Curator runs LLM reviews of all skills daily.
 
 See the full [memory flow diagram](docs/diagrams/hermes-memory-flow.html) for how data flows through the L0–L3 layers.
 
@@ -75,7 +76,7 @@ hermes doctor       # Diagnose any issues
 <tr><td><b>Delegation & Parallelism</b></td><td>Spawn isolated subagents for parallel workstreams. Python code execution with RPC tools for zero-context-cost multi-step pipelines.</td></tr>
 <tr><td><b>Scheduled Automation</b></td><td>Built-in cron scheduler with platform delivery. Daily reports, nightly backups, weekly audits — all in natural language.</td></tr>
 <tr><td><b>Run Anywhere</b></td><td>Seven terminal backends: local, Docker, SSH, Singularity, Modal, Daytona, Vercel Sandbox. Serverless hibernation on idle.</td></tr>
-<tr><td><b>Any Model</b></td><td>Volcengine/GLM, DeepSeek, OpenAI, Anthropic, OpenRouter (200+), NVIDIA NIM, Hugging Face, Kimi, z.ai — switch with <code>hermes model</code>.</td></tr>
+<tr><td><b>Any Model</b></td><td>DeepSeek, GLM, OpenAI, Anthropic, OpenRouter (200+), NVIDIA NIM, Hugging Face, Kimi, z.ai, custom providers — switch with <code>hermes model</code>.</td></tr>
 <tr><td><b>MCP Ecosystem</b></td><td>Native MCP client + mcporter bridge. Connect 8+ built-in MCP servers for browsers, code analysis, research, search, issue tracking, and more.</td></tr>
 <tr><td><b>Research-Ready</b></td><td>Batch trajectory generation, Atropos RL environments, trajectory compression for training next-gen tool-calling models.</td></tr>
 </table>
@@ -133,7 +134,7 @@ Hermes Agent uses a 4-layer progressive memory system, unified by the `memory_re
 Memory is written via dual-path L0→L2 sync (memory tool writes to both immediately), with Hindsight for graph-level analysis and L3 for self-improvement. Query via `memory_recall` for unified multi-layer retrieval or individual tools (`viking_search`, `hindsight_recall`, `session_search`) for targeted access.
 
 <p align="center">
-  <a href="docs/diagrams/hermes-memory-flow.html"><img src="docs/diagrams/hermes-memory-flow.png" alt="Memory Flow" width="90%"></a>
+  <a href="docs/diagrams/hermes-memory-flow.html"><b>📐 Open Memory Flow Diagram →</b></a><br>
   <br><em>Memory Flow Architecture — L0 through L3, unified by memory_recall()</em>
 </p>
 
