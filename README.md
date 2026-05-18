@@ -11,52 +11,13 @@ A heavily customized AI agent deployment with CMA-inspired traceability (ToolRes
 
 ## Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    PLATFORMS                              │
-│  Feishu (primary) │ API Server │ CLI │ ... (6 platforms) │
-└──────────┬──────────────────────────────────────────────┘
-           │ messages / events
-┌──────────▼──────────────────────────────────────────────┐
-│                      BRAIN (LLM)                         │
-│  Volcengine Ark · GLM-5.1 · max_tokens=16384             │
-│  Reasoning: medium · Streaming: enabled                    │
-│  Fallback: auto (OpenRouter, Codex, others)               │
-└──────────┬──────────────────────────────────────────────┘
-           │ tool_calls & results
-┌──────────▼──────────────────────────────────────────────┐
-│                     TOOL SYSTEM                           │
-│  ┌──────────┬──────────┬──────────┐                      │
-│  │ Terminal │ File/RW  │ Search   │  + ToolResult wrapper│
-│  ├──────────┼──────────┼──────────┤                      │
-│  │ Browser  │ Web/HTTP │ Vision   │  + SessionEventLog   │
-│  ├──────────┼──────────┼──────────┤                      │
-│  │ Delegate │ Cron     │ TTS/STT  │  + Context Filtering │
-│  └──────────┴──────────┴──────────┘                      │
-└──────────┬──────────────────────────────────────────────┘
-           │ MCP servers
-┌──────────▼──────────────────────────────────────────────┐
-│                   MCP SERVER ECOSYSTEM                    │
-│  beads (tasks) │ hindsight (graph memory)                 │
-│  sirchmunk (local search) │ deepcode (code AI)           │
-│  deeptutor (learning) │ deerflow (research)              │
-│  browser-harness │ skills-quality                        │
-│  simplemem (long-term memory)                             │
-└──────────┬──────────────────────────────────────────────┘
-           │ memory flow
-┌──────────▼──────────────────────────────────────────────┐
-│                 LAYERED MEMORY SYSTEM                     │
-│  L0: MEMORY.md/USER.md/AGENTS.md (injected every turn)   │
-│  L1: Session context (conversation history)              │
-│  L2: OpenViking KB (semantic search, persistent)         │
-│  Hindsight: Graph reasoning (pgvector-backed)            │
-│  L3: Skills system (55+ skills + quality scoring)        │
-└─────────────────────────────────────────────────────────┘
-```
+<img src="docs/diagrams/hermes-architecture.svg" alt="Hermes Agent Architecture" width="100%"/>
 
 ---
 
 ## Memory System (4-Layer + Hindsight)
+
+**Quick reference:** [Architecture Diagram →](docs/diagrams/hermes-architecture.html) · [Memory Flow Diagram →](docs/diagrams/hermes-memory-flow.html)
 
 | Layer | Name | Storage | Access | Retention |
 |-------|------|---------|--------|-----------|
@@ -65,6 +26,8 @@ A heavily customized AI agent deployment with CMA-inspired traceability (ToolRes
 | **L2** | OpenViking KB | Docker (port 1933) · Sentence embeddings | `viking_search` / `viking_read` / `viking_remember` | Permanent |
 | **Hindsight** | Graph Reasoning | PostgreSQL + pgvector · Docker (port 18888) | `mcp_hindsight_recall` / `mcp_hindsight_reflect` | Permanent |
 | **L3** | Evolution Signals | Skills directory (55+ SKILL.md files) | `skill_manage` / `skills-quality` MCP | Permanent |
+
+<img src="docs/diagrams/hermes-memory-flow.svg" alt="Hermes Agent Memory Flow" width="100%"/>
 
 **Key features:**
 - **Dual-write**: `memory` tool writes to both L0 (MEMORY.md) and L2 (OpenViking) simultaneously

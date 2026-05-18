@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1100 860">
+    59|        <defs>
+    60|          <marker id="arrow-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    61|            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+    62|          </marker>
+    63|          <marker id="arrow-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    64|            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+    65|          </marker>
+    66|          <marker id="arrow-violet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    67|            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa" />
+    68|          </marker>
+    69|          <marker id="arrow-rose" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    70|            <polygon points="0 0, 10 3.5, 0 7" fill="#fb7185" />
+    71|          </marker>
+    72|          <marker id="arrow-amber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    73|            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
+    74|          </marker>
+    75|          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+    76|            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+    77|          </pattern>
+    78|        </defs>
+    79|
+    80|        <rect width="100%" height="100%" fill="url(#grid)" />
+    81|
+    82|        <!-- ====== Title ====== -->
+    83|        <text x="550" y="30" fill="white" font-size="14" font-weight="700" text-anchor="middle">Hermes Agent Layered Memory System · r00tcc's deployment</text>
+    84|        <text x="550" y="48" fill="#94a3b8" font-size="9" text-anchor="middle">4-layer progressive persistence · dual-path ingestion · unified recall</text>
+    85|
+    86|        <!-- ========== L0: INJECTED CONTEXT ========== -->
+    87|        <rect x="50" y="70" width="1000" height="140" rx="12" fill="rgba(8, 51, 68, 0.08)" stroke="#22d3ee" stroke-width="2"/>
+    88|        <rect x="50" y="70" width="160" height="28" rx="6" fill="#22d3ee"/>
+    89|        <text x="130" y="89" fill="#020617" font-size="12" font-weight="700" text-anchor="middle">L0 — INJECTED CONTEXT</text>
+    90|
+    91|        <!-- Memory block -->
+    92|        <rect x="80" y="110" width="220" height="45" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+    93|        <text x="190" y="130" fill="white" font-size="10" font-weight="600" text-anchor="middle">MEMORY.md block</text>
+    94|        <text x="190" y="145" fill="#94a3b8" font-size="7" text-anchor="middle">2,200 chars · durable facts</text>
+    95|
+    96|        <rect x="320" y="110" width="220" height="45" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+    97|        <text x="430" y="130" fill="white" font-size="10" font-weight="600" text-anchor="middle">USER.md profile</text>
+    98|        <text x="430" y="145" fill="#94a3b8" font-size="7" text-anchor="middle">1,375 chars · identity/projects</text>
+    99|
+   100|        <rect x="560" y="110" width="220" height="45" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+   101|        <text x="670" y="130" fill="white" font-size="10" font-weight="600" text-anchor="middle">AGENTS.md pointer</text>
+   102|        <text x="670" y="145" fill="#94a3b8" font-size="7" text-anchor="middle">~930 chars · Progressive Disclosure</text>
+   103|
+   104|        <rect x="800" y="110" width="220" height="45" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+   105|        <text x="910" y="130" fill="white" font-size="10" font-weight="600" text-anchor="middle">System Prompt</text>
+   106|        <text x="910" y="145" fill="#94a3b8" font-size="7" text-anchor="middle">Skills injection + tools</text>
+   107|
+   108|        <text x="80" y="185" fill="#94a3b8" font-size="8">Injected at session start · every turn · highest priority · token-heavy</text>
+   109|        <text x="510" y="195" fill="#22d3ee" font-size="7" text-anchor="middle">memory tool (add/replace/remove) → prompt_builder commits every session</text>
+   110|
+   111|        <!-- L0 → L2 arrow -->
+   112|        <path d="M 390 160 L 390 240 Q 390 255 405 255 L 435 255" fill="none" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#arrow-cyan)"/>
+   113|        <text x="395" y="210" fill="#22d3ee" font-size="7">L0→L2 dual-path sync</text>
+   114|
+   115|        <!-- ========== L1: WORKING MEMORY ========== -->
+   116|        <rect x="50" y="240" width="1000" height="100" rx="12" fill="rgba(6, 78, 59, 0.08)" stroke="#34d399" stroke-width="2"/>
+   117|        <rect x="50" y="240" width="180" height="28" rx="6" fill="#34d399"/>
+   118|        <text x="140" y="259" fill="#020617" font-size="12" font-weight="700" text-anchor="middle">L1 — WORKING MEMORY</text>
+   119|
+   120|        <rect x="80" y="278" width="180" height="45" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+   121|        <text x="170" y="296" fill="white" font-size="10" font-weight="600" text-anchor="middle">Session State</text>
+   122|        <text x="170" y="312" fill="#94a3b8" font-size="7" text-anchor="middle">Conversation history</text>
+   123|
+   124|        <rect x="280" y="278" width="180" height="45" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+   125|        <text x="370" y="296" fill="white" font-size="10" font-weight="600" text-anchor="middle">Tool Results</text>
+   126|        <text x="370" y="312" fill="#94a3b8" font-size="7" text-anchor="middle">File ops · search · terminal</text>
+   127|
+   128|        <rect x="480" y="278" width="180" height="45" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+   129|        <text x="570" y="296" fill="white" font-size="10" font-weight="600" text-anchor="middle">Context Compression</text>
+   130|        <text x="570" y="312" fill="#94a3b8" font-size="7" text-anchor="middle">Trajectory summarization</text>
+   131|
+   132|        <rect x="680" y="278" width="180" height="45" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+   133|        <text x="770" y="296" fill="white" font-size="10" font-weight="600" text-anchor="middle">SOUL.md</text>
+   134|        <text x="770" y="312" fill="#94a3b8" font-size="7" text-anchor="middle">Persona · voice · style</text>
+   135|
+   136|        <rect x="880" y="278" width="140" height="45" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+   137|        <text x="950" y="296" fill="white" font-size="10" font-weight="600" text-anchor="middle">config.yaml</text>
+   138|        <text x="950" y="312" fill="#94a3b8" font-size="7" text-anchor="middle">Runtime settings</text>
+   139|
+   140|        <text x="80" y="328" fill="#94a3b8" font-size="8">hermes_memory_data/ · ephemeral per-session · compressed on context overflow</text>
+   141|
+   142|        <!-- L1 → L2 arrow -->
+   143|        <path d="M 550 340 L 550 410" fill="none" stroke="#34d399" stroke-width="2" marker-end="url(#arrow-emerald)"/>
+   144|        <text x="555" y="378" fill="#34d399" font-size="7">session_search persists</text>
+   145|
+   146|        <!-- ========== L2: OPENVIKING KB ========== -->
+   147|        <rect x="50" y="410" width="1000" height="160" rx="12" fill="rgba(76, 29, 149, 0.08)" stroke="#a78bfa" stroke-width="2"/>
+   148|        <rect x="50" y="410" width="200" height="28" rx="6" fill="#a78bfa"/>
+   149|        <text x="150" y="429" fill="white" font-size="12" font-weight="700" text-anchor="middle">L2 — OPENVIKING KNOWLEDGE BASE</text>
+   150|
+   151|        <!-- Dual input arrows -->
+   152|        <line x1="180" y1="210" x2="180" y2="420" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="5,5"/>
+   153|        <line x1="920" y1="340" x2="920" y2="420" stroke="#34d399" stroke-width="1.5" stroke-dasharray="5,5"/>
+   154|        <text x="140" y="318" fill="#22d3ee" font-size="6">L0 dual-path</text>
+   155|        <text x="880" y="382" fill="#34d399" font-size="6">L1 persist</text>
+   156|
+   157|        <!-- Core tools -->
+   158|        <rect x="80" y="450" width="175" height="50" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+   159|        <text x="167" y="470" fill="white" font-size="10" font-weight="600" text-anchor="middle">viking_search</text>
+   160|        <text x="167" y="487" fill="#94a3b8" font-size="7" text-anchor="middle">Semantic · fast/deep modes</text>
+   161|
+   162|        <rect x="275" y="450" width="175" height="50" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+   163|        <text x="362" y="470" fill="white" font-size="10" font-weight="600" text-anchor="middle">viking_read</text>
+   164|        <text x="362" y="487" fill="#94a3b8" font-size="7" text-anchor="middle">abstract/overview/full</text>
+   165|
+   166|        <rect x="470" y="450" width="175" height="50" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+   167|        <text x="557" y="470" fill="white" font-size="10" font-weight="600" text-anchor="middle">viking_remember</text>
+   168|        <text x="557" y="487" fill="#94a3b8" font-size="7" text-anchor="middle">Store facts · categorize</text>
+   169|
+   170|        <rect x="665" y="450" width="175" height="50" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+   171|        <text x="752" y="470" fill="white" font-size="10" font-weight="600" text-anchor="middle">viking_add_resource</text>
+   172|        <text x="752" y="487" fill="#94a3b8" font-size="7" text-anchor="middle">URLs · docs · files · git</text>
+   173|
+   174|        <rect x="860" y="450" width="160" height="50" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+   175|        <text x="940" y="470" fill="white" font-size="10" font-weight="600" text-anchor="middle">viking_browse</text>
+   176|        <text x="940" y="487" fill="#94a3b8" font-size="7" text-anchor="middle">tree/list/stat</text>
+   177|
+   178|        <text x="80" y="520" fill="#94a3b8" font-size="8">Persistent · semantic search · structured URI space (viking://) · entity/event/pattern/ preference categories</text>
+   179|        <text x="80" y="532" fill="#94a3b8" font-size="8">L2 embedding: 硅基流动 BAAI/bge-large-zh-v1.5 · viking:// user/memories/ · resources/docs/ · resources/repos/ · cases/ · patterns/</text>
+   180|        <text x="775" y="555" fill="#a78bfa" font-size="7" text-anchor="middle">memory tool → viking_remember dual-write</text>
+   181|
+   182|        <!-- Hindsight Bridge -->
+   183|        <path d="M 550 570 L 550 600 Q 550 615 535 615 L 500 630" fill="none" stroke="#a78bfa" stroke-width="2" stroke-dasharray="4,4" marker-end="url(#arrow-violet)"/>
+   184|
+   185|        <!-- ========== HINDSIGHT: GRAPH REASONING ========== -->
+   186|        <rect x="50" y="640" width="480" height="130" rx="12" fill="rgba(136, 19, 55, 0.08)" stroke="#fb7185" stroke-width="2"/>
+   187|        <rect x="50" y="640" width="250" height="28" rx="6" fill="#fb7185"/>
+   188|        <text x="175" y="659" fill="white" font-size="12" font-weight="700" text-anchor="middle">HINDSIGHT — GRAPH REASONING</text>
+   189|
+   190|        <rect x="80" y="680" width="140" height="45" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"/>
+   191|        <text x="150" y="698" fill="white" font-size="9" font-weight="600" text-anchor="middle">mcp_hindsight_retain</text>
+   192|        <text x="150" y="714" fill="#94a3b8" font-size="7" text-anchor="middle">Store with tags</text>
+   193|
+   194|        <rect x="240" y="680" width="130" height="45" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"/>
+   195|        <text x="305" y="698" fill="white" font-size="9" font-weight="600" text-anchor="middle">hindsight_recall</text>
+   196|        <text x="305" y="714" fill="#94a3b8" font-size="7" text-anchor="middle">Multi-strategy</text>
+   197|
+   198|        <rect x="390" y="680" width="110" height="45" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"/>
+   199|        <text x="445" y="698" fill="white" font-size="9" font-weight="600" text-anchor="middle">hindsight_reflect</text>
+   200|        <text x="445" y="714" fill="#94a3b8" font-size="7" text-anchor="middle">Synthesize</text>
+   201|
+   202|        <text x="80" y="745" fill="#94a3b8" font-size="8">Semantic + BM25 + graph + temporal retrieval · Mental models · Experience/fact types</text>
+   203|        <text x="80" y="758" fill="#94a3b8" font-size="8">Docker container · PostgreSQL/pgvector · bank isolation · reflect() for deep synthesis</text>
+   204|
+   205|        <!-- ========== L3: EVOLUTION SIGNALS ========== -->
+   206|        <rect x="570" y="640" width="480" height="130" rx="12" fill="rgba(251, 191, 36, 0.08)" stroke="#fbbf24" stroke-width="2"/>
+   207|        <rect x="570" y="640" width="240" height="28" rx="6" fill="#fbbf24"/>
+   208|        <text x="690" y="659" fill="#020617" font-size="12" font-weight="700" text-anchor="middle">L3 — EVOLUTION SIGNALS</text>
+   209|
+   210|        <rect x="590" y="680" width="130" height="45" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+   211|        <text x="655" y="698" fill="white" font-size="9" font-weight="600" text-anchor="middle">Skill auto-create</text>
+   212|        <text x="655" y="714" fill="#94a3b8" font-size="7" text-anchor="middle">Complex task → skill</text>
+   213|
+   214|        <rect x="740" y="680" width="130" height="45" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+   215|        <text x="805" y="698" fill="white" font-size="9" font-weight="600" text-anchor="middle">Quality scoring</text>
+   216|        <text x="805" y="714" fill="#94a3b8" font-size="7" text-anchor="middle">skills-quality MCP</text>
+   217|
+   218|        <rect x="890" y="680" width="130" height="45" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+   219|        <text x="955" y="698" fill="white" font-size="9" font-weight="600" text-anchor="middle">Session Event Log</text>
+   220|        <text x="955" y="714" fill="#94a3b8" font-size="7" text-anchor="middle">ToolResult traceability</text>
+   221|
+   222|        <text x="600" y="745" fill="#94a3b8" font-size="8">Self-evolution pipeline · Skill auto-creation + quality scoring + curator reviews · ToolResult standardization</text>
+   223|        <text x="600" y="758" fill="#94a3b8" font-size="8">Session Event Log: append-only trace of tool calls · CMA-inspired harness-ready architecture</text>
+   224|
+   225|        <!-- ========== UNIFIED RECALL ========== -->
+   226|        <rect x="200" y="790" width="700" height="55" rx="10" fill="rgba(34, 211, 238, 0.1)" stroke="#22d3ee" stroke-width="2"/>
+   227|        <text x="550" y="810" fill="#22d3ee" font-size="13" font-weight="700" text-anchor="middle">memory_recall(query) — Unified Multi-Layer Retrieval Engine</text>
+   228|        <text x="550" y="830" fill="#94a3b8" font-size="8" text-anchor="middle">L0 injected context → L2 OpenViking → Hindsight graph → L1 working memory → L3 evolution signals</text>
+   229|        <text x="550" y="842" fill="#64748b" font-size="7" text-anchor="middle">Deduplicated · Ranked by relevance · Source-layer tagged · Fallback across layers</text>
+   230|
+   231|        <!-- Legend -->
+   232|        <text x="50" y="842" fill="white" font-size="10" font-weight="600">Legend</text>
+   233|        <rect x="50" y="850" width="14" height="8" rx="2" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1"/>
+   234|        <text x="68" y="857" fill="#94a3b8" font-size="7">L0 Injected</text>
+   235|        <rect x="130" y="850" width="14" height="8" rx="2" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1"/>
+   236|        <text x="148" y="857" fill="#94a3b8" font-size="7">L1 Working</text>
+   237|        <rect x="215" y="850" width="14" height="8" rx="2" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1"/>
+   238|        <text x="233" y="857" fill="#94a3b8" font-size="7">L2 OpenViking</text>
+   239|        <rect x="305" y="850" width="14" height="8" rx="2" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1"/>
+   240|        <text x="323" y="857" fill="#94a3b8" font-size="7">Hindsight</text>
+   241|        <rect x="380" y="850" width="14" height="8" rx="2" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1"/>
+   242|        <text x="398" y="857" fill="#94a3b8" font-size="7">L3 Evolution</text>
+   243|      </svg>
