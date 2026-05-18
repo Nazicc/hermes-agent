@@ -139,9 +139,23 @@ class SyntheticDatasetBuilder:
             import re
             match = re.search(r'\[.*\]', result.test_cases, re.DOTALL)
             if match:
-                cases_raw = json.loads(match.group())
+                extracted = match.group()
+                try:
+                    cases_raw = json.loads(extracted)
+                except json.JSONDecodeError:
+                    # Last resort: repair malformed JSON
+                    from json_repair import repair_json
+                    cases_raw = json.loads(repair_json(extracted))
             else:
                 raise ValueError(f"Could not parse test cases from LLM output: {result.test_cases[:200]}")
+
+        # Ensure cases_raw is a list of dicts
+        if isinstance(cases_raw, str):
+            cases_raw = json.loads(cases_raw)
+        if isinstance(cases_raw, dict):
+            cases_raw = [cases_raw]
+        if not isinstance(cases_raw, list):
+            raise ValueError(f"Parsed test cases is not a list: {type(cases_raw)}")
 
         examples = [
             EvalExample(
@@ -152,7 +166,7 @@ class SyntheticDatasetBuilder:
                 source="synthetic",
             )
             for c in cases_raw
-            if c.get("task_input") and c.get("expected_behavior")
+            if isinstance(c, dict) and c.get("task_input") and c.get("expected_behavior")
         ]
 
         # Shuffle and split

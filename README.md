@@ -35,7 +35,7 @@ Hermes Agent is built in layers:
 - **Delegation** — Subagent spawning with isolated contexts, parallel workstreams, ACP transports (Claude Code, Codex, Codebuff, OpenCode).
 - **Cron Scheduler** — Natural-language scheduled tasks with platform delivery, watchdog scripts, chain jobs.
 - **MCP Integration** — Native MCP client + mcporter bridge. Built-in servers: browser-harness, deepcode, deeptutor, deerflow, sirchmunk, beads, hindsight, skills-quality.
-- **Evolver** — Self-evolution pipeline: DSPy MIPROv2 optimizer, skill auto-creation, quality scoring (stub→developing→good→excellent), periodic nudge system. Curator runs LLM reviews of all skills daily.
+- **Self-Evolution** — Agent-curated learning loop: auto-creates skills after complex tasks, patches them during use, quality scoring (stub→developing→good→excellent), curator runs daily LLM reviews. CMA-inspired: ToolResult standardization (`agent/tool_result.py`) and Session Event Log (`agent/session_event_log.py`) for traceability.
 
 See the full [memory flow diagram](docs/diagrams/hermes-memory-flow.html) for how data flows through the L0–L3 layers.
 
@@ -129,7 +129,7 @@ Hermes Agent uses a 4-layer progressive memory system, unified by the `memory_re
 | **L1** | Working Memory | Per-session | `hermes_memory_data/` | Conversation history, tool results, context compression |
 | **L2** | OpenViking KB | Permanent | Semantic store (viking://) | Long-term knowledge, entity/event/pattern/preference storage |
 | **Hindsight** | Graph Reasoning | Permanent | PostgreSQL/pgvector | Pattern detection, reflection, mental models, multi-strategy retrieval |
-| **L3** | Evolution Signals | Permanent | `evolver/` | Skill auto-creation, quality scoring, nudge-driven improvement |
+| **L3** | Evolution Signals | Permanent | Skills system | Skill auto-creation, quality scoring, nudge-driven improvement |
 
 Memory is written via dual-path L0→L2 sync (memory tool writes to both immediately), with Hindsight for graph-level analysis and L3 for self-improvement. Query via `memory_recall` for unified multi-layer retrieval or individual tools (`viking_search`, `hindsight_recall`, `session_search`) for targeted access.
 

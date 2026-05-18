@@ -225,7 +225,7 @@ def main():
     # Phase B: collect RTK metrics and write to Evolver-readable location
     metrics = collect_rtk_metrics()
     if "error" not in metrics:
-        rtk_metrics_path = Path.home() / ".hermes" / "hermes-agent" / "evolver" / "assets" / "gep" / "rtk_metrics.jsonl"
+        rtk_metrics_path = Path.home() / ".hermes" / "hermes-agent" / "hermes-agent-self-evolution" / "assets" / "gep" / "rtk_metrics.jsonl"
         rtk_metrics_path.parent.mkdir(parents=True, exist_ok=True)
         record = {"timestamp": datetime.now().isoformat(), **metrics}
         with open(rtk_metrics_path, "a", encoding="utf-8") as f:

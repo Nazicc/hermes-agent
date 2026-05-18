@@ -162,6 +162,7 @@ from agent.subdirectory_hints import SubdirectoryHintTracker
 from agent.prompt_caching import apply_anthropic_cache_control
 from agent.prompt_builder import build_skills_system_prompt, build_context_files_prompt, build_environment_hints, load_soul_md, TOOL_USE_ENFORCEMENT_GUIDANCE, TOOL_USE_ENFORCEMENT_MODELS, GOOGLE_MODEL_OPERATIONAL_GUIDANCE, OPENAI_MODEL_EXECUTION_GUIDANCE
 from agent.usage_pricing import estimate_usage_cost, normalize_usage
+from agent.session_event_log import SessionEventLog
 from agent.codex_responses_adapter import (
     _derive_responses_function_call_id as _codex_derive_responses_function_call_id,
     _deterministic_call_id as _codex_deterministic_call_id,
@@ -1911,7 +1912,25 @@ class AIAgent:
         self.logs_dir = hermes_home / "sessions"
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         self.session_log_file = self.logs_dir / f"session_{self.session_id}.json"
-        
+
+        # ── Structured session event log (JSONL) ─────────────────
+        # Append-only event log recording tool calls, LLM invocations,
+        # and session lifecycle events for replay and self-analysis.
+        # File: {logs_dir}/{session_id}/events.jsonl
+        try:
+            self._event_log: Optional[SessionEventLog] = SessionEventLog(
+                session_id=self.session_id,
+                base_dir=self.logs_dir,
+            )
+            self._event_log.append("session_start", {
+                "model": self.model,
+                "provider": self.provider,
+                "session_id": self.session_id,
+            })
+        except Exception:
+            logger.warning("Failed to initialize session event log", exc_info=True)
+            self._event_log = None
+
         # Track conversation messages for session logging
         self._session_messages: List[Dict[str, Any]] = []
         self._memory_write_origin = "assistant_tool"
@@ -5808,6 +5827,16 @@ class AIAgent:
         independently guarded so a failure in one does not prevent the rest.
         """
         task_id = getattr(self, "session_id", None) or ""
+
+        # ── Log session_end to event log ──────────────────────────────
+        if getattr(self, "_event_log", None) is not None:
+            try:
+                self._event_log.append("session_end", {
+                    "session_id": self.session_id,
+                    "reason": "close",
+                })
+            except Exception:
+                pass
 
         # 1. Kill background processes for this task
         try:
@@ -10903,12 +10932,12 @@ class AIAgent:
                 result = f"Error executing tool '{function_name}': {tool_error}"
                 logger.error("_invoke_tool raised for %s: %s", function_name, tool_error, exc_info=True)
             duration = time.time() - start
-            is_error, _ = _detect_tool_failure(function_name, result)
+            is_error, _tool_error_suffix = _detect_tool_failure(function_name, result)
             if is_error:
                 logger.info("tool %s failed (%.2fs): %s", function_name, duration, result[:200])
             else:
                 logger.info("tool %s completed (%.2fs, %d chars)", function_name, duration, len(result))
-            results[index] = (function_name, function_args, result, duration, is_error, False)
+            results[index] = (function_name, function_args, result, duration, is_error, False, _tool_error_suffix)
             # Tear down worker-tid tracking.  Clear any interrupt bit we may
             # have set so the next task scheduled onto this recycled tid
             # starts with a clean slate.
@@ -11006,6 +11035,8 @@ class AIAgent:
         for i, (tc, name, args, block_result, blocked_by_guardrail) in enumerate(parsed_calls):
             r = results[i]
             blocked = False
+            r_is_error = False  # default for null results
+            r_error_suffix = ""  # default for null results
             if r is None:
                 # Tool was cancelled (interrupt) or thread didn't return
                 if self._interrupt_requested:
@@ -11014,7 +11045,8 @@ class AIAgent:
                     function_result = f"Error executing tool '{name}': thread did not return a result"
                 tool_duration = 0.0
             else:
-                function_name, function_args, function_result, tool_duration, is_error, blocked = r
+                function_name, function_args, function_result, tool_duration, is_error, blocked, r_error_suffix = r
+                r_is_error = is_error
 
                 if not blocked:
                     function_result = self._append_guardrail_observation(
@@ -11109,8 +11141,28 @@ class AIAgent:
                 "name": name,
                 "content": _tool_content,
                 "tool_call_id": tc.id,
+                # Tool metadata for event logging & context reconstruction
+                "_tool_duration": tool_duration * 1000.0,  # seconds → ms
+                "_tool_status": "error" if r_is_error else "success",
+                "_tool_error": r_error_suffix if r_is_error else "",
             }
             messages.append(tool_msg)
+
+            # ── Log tool_result & tool_call to SessionEventLog ─────────
+            if self._event_log is not None:
+                self._event_log.append("tool_call", {
+                    "name": name,
+                    "call_id": tc.id,
+                    "arguments": args,
+                })
+                self._event_log.append("tool_result", {
+                    "name": name,
+                    "call_id": tc.id,
+                    "duration": tool_duration * 1000.0,
+                    "status": "error" if r_is_error else "success",
+                    "error": r_error_suffix if r_is_error else "",
+                    "content_preview": (function_result[:200] + "...") if isinstance(function_result, str) and len(function_result) > 200 else (str(function_result) if not isinstance(function_result, str) else function_result),
+                })
 
             # ── Per-tool /steer drain ───────────────────────────────────
             # Same as the sequential path: drain between each collected
@@ -11450,7 +11502,7 @@ class AIAgent:
 
             # Log tool errors to the persistent error log so [error] tags
             # in the UI always have a corresponding detailed entry on disk.
-            _is_error_result, _ = _detect_tool_failure(function_name, function_result)
+            _is_error_result, _tool_error_suffix = _detect_tool_failure(function_name, function_result)
             if not _execution_blocked:
                 function_result = self._append_guardrail_observation(
                     function_name,
@@ -11527,9 +11579,29 @@ class AIAgent:
                 "role": "tool",
                 "name": function_name,
                 "content": _tool_content,
-                "tool_call_id": tool_call.id
+                "tool_call_id": tool_call.id,
+                # Tool metadata for event logging & context reconstruction
+                "_tool_duration": tool_duration * 1000.0,  # seconds → ms
+                "_tool_status": "error" if _is_error_result else "success",
+                "_tool_error": _tool_error_suffix if _is_error_result else "",
             }
             messages.append(tool_msg)
+
+            # ── Log tool_result & tool_call to SessionEventLog ─────────
+            if self._event_log is not None:
+                self._event_log.append("tool_call", {
+                    "name": function_name,
+                    "call_id": tool_call.id,
+                    "arguments": function_args,
+                })
+                self._event_log.append("tool_result", {
+                    "name": function_name,
+                    "call_id": tool_call.id,
+                    "duration": tool_duration * 1000.0,
+                    "status": "error" if _is_error_result else "success",
+                    "error": _tool_error_suffix if _is_error_result else "",
+                    "content_preview": (function_result[:200] + "...") if isinstance(function_result, str) and len(function_result) > 200 else (str(function_result) if not isinstance(function_result, str) else function_result),
+                })
 
             # ── Per-tool /steer drain ───────────────────────────────────
             # Drain pending steer BETWEEN individual tool calls so the

@@ -77,6 +77,7 @@ class ToolCallGuardrailConfig:
     same_tool_failure_halt_after: int = 8
     no_progress_warn_after: int = 2
     no_progress_block_after: int = 5
+    stall_turns_halt_after: int = 5
     idempotent_tools: frozenset[str] = field(default_factory=lambda: IDEMPOTENT_TOOL_NAMES)
     mutating_tools: frozenset[str] = field(default_factory=lambda: MUTATING_TOOL_NAMES)
 
@@ -120,6 +121,10 @@ class ToolCallGuardrailConfig:
             no_progress_block_after=_positive_int(
                 hard_stop_after.get("idempotent_no_progress", data.get("no_progress_block_after")),
                 defaults.no_progress_block_after,
+            ),
+            stall_turns_halt_after=_positive_int(
+                hard_stop_after.get("stall_turns", data.get("stall_turns_halt_after")),
+                defaults.stall_turns_halt_after,
             ),
         )
 
@@ -226,13 +231,35 @@ class ToolCallGuardrailController:
 
     def __init__(self, config: ToolCallGuardrailConfig | None = None):
         self.config = config or ToolCallGuardrailConfig()
+        # Failure counters persist across turns (see reset_for_turn note).
+        self._exact_failure_counts: dict[ToolCallSignature, int] = {}
+        self._same_tool_failure_counts: dict[str, int] = {}
         self.reset_for_turn()
 
     def reset_for_turn(self) -> None:
-        self._exact_failure_counts: dict[ToolCallSignature, int] = {}
-        self._same_tool_failure_counts: dict[str, int] = {}
+        # Evaluate the previous turn: if it produced zero successful tool calls,
+        # increment the stall counter.  On any success, reset the counter.
+        if getattr(self, '_turn_had_success', None) is False:
+            # Ignore the very first turn (attribute not set yet).  After that,
+            # a turn with zero successes signals a potential stall.
+            self._turns_without_progress = getattr(self, '_turns_without_progress', 0) + 1
+        elif getattr(self, '_turn_had_success', None) is True:
+            self._turns_without_progress = 0
+        else:
+            # First turn: no prior state.  Initialise both trackers.
+            self._turns_without_progress = 0
+
+        # NOTE: Failure counters (_exact_failure_counts, _same_tool_failure_counts)
+        # persist across turns so that a multi-turn death spiral (2-3 fails per
+        # turn, never hitting the per-turn threshold before reset) is caught.
+        # They are cleared organically when any tool call succeeds (after_call
+        # pops the entry on success), so legitimate progress doesn't accumulate
+        # phantom failures.  _no_progress is turn-scoped because repeated reads
+        # are usually within the same turn and across turns they reset naturally.
         self._no_progress: dict[ToolCallSignature, tuple[str, int]] = {}
         self._halt_decision: ToolGuardrailDecision | None = None
+        # Track turns without any successful tool call for stall detection.
+        self._turn_had_success: bool = False  # reset per-turn flag
 
     @property
     def halt_decision(self) -> ToolGuardrailDecision | None:
@@ -242,6 +269,28 @@ class ToolCallGuardrailController:
         signature = ToolCallSignature.from_call(tool_name, _coerce_args(args))
         if not self.config.hard_stop_enabled:
             return ToolGuardrailDecision(tool_name=tool_name, signature=signature)
+
+        # Cross-turn stall detection: halt when N consecutive turns
+        # produced zero successful tool calls.  Catches multi-turn
+        # death spirals where every tool fails but the per-turn exact
+        # failure threshold is never reached.
+        stall_turns = self._turns_without_progress
+        if stall_turns >= self.config.stall_turns_halt_after:
+            decision = ToolGuardrailDecision(
+                action="block",
+                code="cross_turn_stall_halt",
+                message=(
+                    f"The assistant has failed every tool call for {stall_turns} "
+                    f"consecutive turns.  HALT to force a strategy change.  "
+                    f"Analyse why tools are failing, then propose a different "
+                    f"approach before retrying."
+                ),
+                tool_name=tool_name,
+                count=stall_turns,
+                signature=signature,
+            )
+            self._halt_decision = decision
+            return decision
 
         exact_count = self._exact_failure_counts.get(signature, 0)
         if exact_count >= self.config.exact_failure_block_after:
@@ -349,6 +398,8 @@ class ToolCallGuardrailController:
 
         self._exact_failure_counts.pop(signature, None)
         self._same_tool_failure_counts.pop(tool_name, None)
+        # Signal progress: this turn had at least one successful tool call.
+        self._turn_had_success = True
 
         if not self._is_idempotent(tool_name):
             self._no_progress.pop(signature, None)

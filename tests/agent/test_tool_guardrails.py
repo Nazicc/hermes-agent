@@ -237,6 +237,9 @@ def test_mutating_or_unknown_tools_are_not_blocked_for_repeated_identical_succes
 
 
 def test_reset_for_turn_clears_bounded_guardrail_state():
+    """reset_for_turn clears idempotent-no-progress & halt, but NOT
+    exact-failure counts (they persist across turns to catch multi-turn
+    death spirals where per-turn thresholds are never hit)."""
     controller = ToolCallGuardrailController(
         ToolCallGuardrailConfig(hard_stop_enabled=True, exact_failure_block_after=2, no_progress_block_after=2)
     )
@@ -250,5 +253,7 @@ def test_reset_for_turn_clears_bounded_guardrail_state():
 
     controller.reset_for_turn()
 
-    assert controller.before_call("web_search", {"query": "same"}).action == "allow"
+    # exact_failure_counts persist — web_search is still blocked after reset
+    assert controller.before_call("web_search", {"query": "same"}).action == "block"
+    # idempotent_no_progress is cleared — read_file is freed
     assert controller.before_call("read_file", {"path": "/tmp/x"}).action == "allow"

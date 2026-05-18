@@ -254,7 +254,8 @@ class TestBuildSkillsSystemPrompt:
         result = build_skills_system_prompt()
         assert result == ""
 
-    def test_builds_index_with_skills(self, monkeypatch, tmp_path):
+    def test_returns_lazy_loading_instruction(self, monkeypatch, tmp_path):
+        """Lazy-loading: prompt instructs model to use skills_list/skill_view, not inline names."""
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         skills_dir = tmp_path / "skills" / "coding" / "python-debug"
         skills_dir.mkdir(parents=True)
@@ -262,11 +263,25 @@ class TestBuildSkillsSystemPrompt:
             "---\nname: python-debug\ndescription: Debug Python scripts\n---\n"
         )
         result = build_skills_system_prompt()
-        assert "python-debug" in result
-        assert "Debug Python scripts" in result
-        assert "available_skills" in result
+        assert "skills_list" in result
+        assert "skill_view" in result
+        # No more <available_skills> block
+        assert "<available_skills>" not in result
 
-    def test_deduplicates_skills(self, monkeypatch, tmp_path):
+    def test_does_not_contain_skill_names(self, monkeypatch, tmp_path):
+        """Skill names are no longer inlined — model discovers them at runtime via skills_list."""
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        skills_dir = tmp_path / "skills" / "coding" / "python-debug"
+        skills_dir.mkdir(parents=True)
+        (skills_dir / "SKILL.md").write_text(
+            "---\nname: python-debug\ndescription: Debug Python scripts\n---\n"
+        )
+        result = build_skills_system_prompt()
+        assert "python-debug" not in result
+        assert "Debug Python scripts" not in result
+
+    def test_idempotent_even_with_duplicates(self, monkeypatch, tmp_path):
+        """Having duplicate skill dirs should not crash — skills_list handles dedup at runtime."""
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         cat_dir = tmp_path / "skills" / "tools"
         for subdir in ["search", "search"]:
@@ -274,159 +289,72 @@ class TestBuildSkillsSystemPrompt:
             d.mkdir(parents=True, exist_ok=True)
             (d / "SKILL.md").write_text("---\ndescription: Search stuff\n---\n")
         result = build_skills_system_prompt()
-        # "search" should appear only once per category
-        assert result.count("- search") == 1
+        assert "skills_list" in result
 
-    def test_excludes_incompatible_platform_skills(self, monkeypatch, tmp_path):
-        """Skills with platforms: [macos] should not appear on Linux."""
+    def test_platform_filtering_is_runtime_concern(self, monkeypatch, tmp_path):
+        """Platform filtering happens at runtime via skills_list, not in the prompt."""
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         skills_dir = tmp_path / "skills" / "apple"
         skills_dir.mkdir(parents=True)
-
-        # macOS-only skill
         mac_skill = skills_dir / "imessage"
         mac_skill.mkdir()
         (mac_skill / "SKILL.md").write_text(
             "---\nname: imessage\ndescription: Send iMessages\nplatforms: [macos]\n---\n"
         )
+        result = build_skills_system_prompt()
+        assert "skills_list" in result
+        assert "imessage" not in result  # Not inlined
 
-        # Universal skill
-        uni_skill = skills_dir / "web-search"
-        uni_skill.mkdir()
-        (uni_skill / "SKILL.md").write_text(
-            "---\nname: web-search\ndescription: Search the web\n---\n"
-        )
-
-        from unittest.mock import patch
-
-        with patch("agent.skill_utils.sys") as mock_sys:
-            mock_sys.platform = "linux"
-            result = build_skills_system_prompt()
-
-        assert "web-search" in result
-        assert "imessage" not in result
-
-    def test_includes_matching_platform_skills(self, monkeypatch, tmp_path):
-        """Skills with platforms: [macos] should appear on macOS."""
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-        skills_dir = tmp_path / "skills" / "apple"
-        mac_skill = skills_dir / "imessage"
-        mac_skill.mkdir(parents=True)
-        (mac_skill / "SKILL.md").write_text(
-            "---\nname: imessage\ndescription: Send iMessages\nplatforms: [macos]\n---\n"
-        )
-
-        from unittest.mock import patch
-
-        with patch("agent.skill_utils.sys") as mock_sys:
-            mock_sys.platform = "darwin"
-            result = build_skills_system_prompt()
-
-        assert "imessage" in result
-        assert "Send iMessages" in result
-
-    def test_excludes_disabled_skills(self, monkeypatch, tmp_path):
-        """Skills in the user's disabled list should not appear in the system prompt."""
+    def test_disabled_skills_handled_at_runtime(self, monkeypatch, tmp_path):
+        """Disabled skill filtering happens at runtime via skills_list."""
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         skills_dir = tmp_path / "skills" / "tools"
         skills_dir.mkdir(parents=True)
-
-        enabled_skill = skills_dir / "web-search"
-        enabled_skill.mkdir()
-        (enabled_skill / "SKILL.md").write_text(
-            "---\nname: web-search\ndescription: Search the web\n---\n"
-        )
-
-        disabled_skill = skills_dir / "old-tool"
-        disabled_skill.mkdir()
-        (disabled_skill / "SKILL.md").write_text(
-            "---\nname: old-tool\ndescription: Deprecated tool\n---\n"
-        )
-
+        for name in ["web-search", "old-tool"]:
+            d = skills_dir / name
+            d.mkdir(exist_ok=True)
+            (d / "SKILL.md").write_text(
+                f"---\nname: {name}\ndescription: Test skill\n---\n"
+            )
         from unittest.mock import patch
-
         with patch(
             "agent.prompt_builder.get_disabled_skill_names",
             return_value={"old-tool"},
         ):
             result = build_skills_system_prompt()
+        assert "skills_list" in result
+        # Disabled flag doesn't change the static instruction
 
-        assert "web-search" in result
-        assert "old-tool" not in result
-
-    def test_rebuilds_prompt_when_disabled_skills_change(self, monkeypatch, tmp_path):
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-        skill_dir = tmp_path / "skills" / "tools" / "cached-skill"
-        skill_dir.mkdir(parents=True)
-        (skill_dir / "SKILL.md").write_text(
-            "---\nname: cached-skill\ndescription: Cached skill\n---\n"
-        )
-
-        first = build_skills_system_prompt()
-        assert "cached-skill" in first
-
-        (tmp_path / "config.yaml").write_text(
-            "skills:\n  disabled: [cached-skill]\n"
-        )
-
-        second = build_skills_system_prompt()
-        assert "cached-skill" not in second
-
-    def test_includes_setup_needed_skills(self, monkeypatch, tmp_path):
+    def test_prerequisites_handled_at_runtime(self, monkeypatch, tmp_path):
+        """Prerequisite checking happens at runtime via skill_view, not in the prompt."""
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         monkeypatch.delenv("MISSING_API_KEY_XYZ", raising=False)
         skills_dir = tmp_path / "skills" / "media"
-
         gated = skills_dir / "gated-skill"
         gated.mkdir(parents=True)
         (gated / "SKILL.md").write_text(
             "---\nname: gated-skill\ndescription: Needs a key\n"
             "prerequisites:\n  env_vars: [MISSING_API_KEY_XYZ]\n---\n"
         )
-
-        available = skills_dir / "free-skill"
-        available.mkdir(parents=True)
-        (available / "SKILL.md").write_text(
-            "---\nname: free-skill\ndescription: No prereqs\n---\n"
-        )
-
         result = build_skills_system_prompt()
-        assert "free-skill" in result
-        assert "gated-skill" in result
+        assert "skills_list" in result
+        assert "gated-skill" not in result  # Not inlined
 
-    def test_includes_skills_with_met_prerequisites(self, monkeypatch, tmp_path):
-        """Skills with satisfied prerequisites should appear normally."""
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-        monkeypatch.setenv("MY_API_KEY", "test_value")
-        skills_dir = tmp_path / "skills" / "media"
-
-        skill = skills_dir / "ready-skill"
-        skill.mkdir(parents=True)
-        (skill / "SKILL.md").write_text(
-            "---\nname: ready-skill\ndescription: Has key\n"
-            "prerequisites:\n  env_vars: [MY_API_KEY]\n---\n"
-        )
-
-        result = build_skills_system_prompt()
-        assert "ready-skill" in result
-
-    def test_non_local_backend_keeps_skill_visible_without_probe(
-        self, monkeypatch, tmp_path
-    ):
+    def test_non_local_backend_no_probe_in_prompt(self, monkeypatch, tmp_path):
+        """Backend probes happen at runtime via skills_list/skill_view."""
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         monkeypatch.setenv("TERMINAL_ENV", "docker")
         monkeypatch.delenv("BACKEND_ONLY_KEY", raising=False)
         skills_dir = tmp_path / "skills" / "media"
-
         skill = skills_dir / "backend-skill"
         skill.mkdir(parents=True)
         (skill / "SKILL.md").write_text(
             "---\nname: backend-skill\ndescription: Available in backend\n"
             "prerequisites:\n  env_vars: [BACKEND_ONLY_KEY]\n---\n"
         )
-
         result = build_skills_system_prompt()
-        assert "backend-skill" in result
+        assert "skills_list" in result
+        assert "backend-skill" not in result  # Not inlined
 
 
 class TestBuildNousSubscriptionPrompt:
@@ -1014,6 +942,7 @@ class TestBuildSkillsSystemPromptConditional:
         clear_skills_system_prompt_cache(clear_snapshot=True)
 
     def test_fallback_skill_hidden_when_primary_available(self, monkeypatch, tmp_path):
+        """Fallback filtering happens at runtime via skills_list; prompt is static."""
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         skill_dir = tmp_path / "skills" / "search" / "duckduckgo"
         skill_dir.mkdir(parents=True)
@@ -1024,9 +953,11 @@ class TestBuildSkillsSystemPromptConditional:
             available_tools=set(),
             available_toolsets={"web"},
         )
+        assert "skills_list" in result
         assert "duckduckgo" not in result
 
     def test_fallback_skill_shown_when_primary_unavailable(self, monkeypatch, tmp_path):
+        """Fallback filtering happens at runtime — static prompt unaffected."""
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         skill_dir = tmp_path / "skills" / "search" / "duckduckgo"
         skill_dir.mkdir(parents=True)
@@ -1037,9 +968,11 @@ class TestBuildSkillsSystemPromptConditional:
             available_tools=set(),
             available_toolsets=set(),
         )
-        assert "duckduckgo" in result
+        assert "skills_list" in result
+        assert "duckduckgo" not in result
 
     def test_requires_skill_hidden_when_toolset_missing(self, monkeypatch, tmp_path):
+        """Toolset requirement filtering is runtime concern."""
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         skill_dir = tmp_path / "skills" / "iot" / "openhue"
         skill_dir.mkdir(parents=True)
@@ -1050,9 +983,11 @@ class TestBuildSkillsSystemPromptConditional:
             available_tools=set(),
             available_toolsets=set(),
         )
+        assert "skills_list" in result
         assert "openhue" not in result
 
     def test_requires_skill_shown_when_toolset_available(self, monkeypatch, tmp_path):
+        """Toolset requirement filtering is runtime concern."""
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         skill_dir = tmp_path / "skills" / "iot" / "openhue"
         skill_dir.mkdir(parents=True)
@@ -1063,9 +998,11 @@ class TestBuildSkillsSystemPromptConditional:
             available_tools=set(),
             available_toolsets={"terminal"},
         )
-        assert "openhue" in result
+        assert "skills_list" in result
+        assert "openhue" not in result
 
     def test_unconditional_skill_always_shown(self, monkeypatch, tmp_path):
+        """Unconditional skills are also not inlined — discovered at runtime."""
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         skill_dir = tmp_path / "skills" / "general" / "notes"
         skill_dir.mkdir(parents=True)
@@ -1076,10 +1013,11 @@ class TestBuildSkillsSystemPromptConditional:
             available_tools=set(),
             available_toolsets=set(),
         )
-        assert "notes" in result
+        assert "skills_list" in result
+        assert "notes" not in result
 
     def test_no_args_shows_all_skills(self, monkeypatch, tmp_path):
-        """Backward compat: calling with no args shows everything."""
+        """Backward compat: calling with no args returns static instruction."""
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         skill_dir = tmp_path / "skills" / "search" / "duckduckgo"
         skill_dir.mkdir(parents=True)
@@ -1087,7 +1025,8 @@ class TestBuildSkillsSystemPromptConditional:
             "---\nname: duckduckgo\ndescription: Free web search\nmetadata:\n  hermes:\n    fallback_for_toolsets: [web]\n---\n"
         )
         result = build_skills_system_prompt()
-        assert "duckduckgo" in result
+        assert "skills_list" in result
+        assert "duckduckgo" not in result
 
     def test_null_metadata_does_not_crash(self, monkeypatch, tmp_path):
         """Regression: metadata key present but null should not AttributeError."""
@@ -1102,7 +1041,7 @@ class TestBuildSkillsSystemPromptConditional:
             available_tools=set(),
             available_toolsets=set(),
         )
-        assert "safe-skill" in result
+        assert "skills_list" in result
 
     def test_null_hermes_under_metadata_does_not_crash(self, monkeypatch, tmp_path):
         """Regression: metadata.hermes present but null should not crash."""
@@ -1116,7 +1055,7 @@ class TestBuildSkillsSystemPromptConditional:
             available_tools=set(),
             available_toolsets=set(),
         )
-        assert "nested-null" in result
+        assert "skills_list" in result
 
 
 # =========================================================================
