@@ -11,7 +11,7 @@ A heavily customized AI agent deployment with CMA-inspired traceability (ToolRes
 
 ## Architecture Overview
 
-<img src="docs/diagrams/hermes-architecture.svg" alt="Hermes Agent Architecture" width="100%"/>
+<img src="docs/diagrams/hermes-architecture.png" alt="Hermes Agent Architecture" width="100%"/>
 
 ---
 
@@ -27,7 +27,7 @@ A heavily customized AI agent deployment with CMA-inspired traceability (ToolRes
 | **Hindsight** | Graph Reasoning | PostgreSQL + pgvector · Docker (port 18888) | `mcp_hindsight_recall` / `mcp_hindsight_reflect` | Permanent |
 | **L3** | Evolution Signals | Skills directory (55+ SKILL.md files) | `skill_manage` / `skills-quality` MCP | Permanent |
 
-<img src="docs/diagrams/hermes-memory-flow.svg" alt="Hermes Agent Memory Flow" width="100%"/>
+<img src="docs/diagrams/hermes-memory-flow.png" alt="Hermes Agent Memory Flow" width="100%"/>
 
 **Key features:**
 - **Dual-write**: `memory` tool writes to both L0 (MEMORY.md) and L2 (OpenViking) simultaneously

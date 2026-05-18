@@ -1,0 +1,509 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "hermes-agent",
+  "elements": [
+    {
+      "type": "text",
+      "id": "mem_title",
+      "x": 200,
+      "y": 15,
+      "text": "Hermes Agent Layered Memory Flow",
+      "fontSize": 28,
+      "fontFamily": 1,
+      "strokeColor": "#1e1e1e",
+      "originalText": "Hermes Agent Layered Memory Flow",
+      "autoResize": true
+    },
+    {
+      "type": "text",
+      "id": "mem_sub",
+      "x": 250,
+      "y": 50,
+      "text": "L0 \u2192 L1 \u2192 L2 \u2192 Hindsight \u2192 L3  |  r00tcc's deployment",
+      "fontSize": 14,
+      "fontFamily": 1,
+      "strokeColor": "#757575",
+      "originalText": "L0 \u2192 L1 \u2192 L2 \u2192 Hindsight \u2192 L3  |  r00tcc's deployment",
+      "autoResize": true
+    },
+    {
+      "type": "rectangle",
+      "id": "mem_l0",
+      "x": 40,
+      "y": 90,
+      "width": 320,
+      "height": 80,
+      "roundness": {
+        "type": 3
+      },
+      "backgroundColor": "#dbe4ff",
+      "fillStyle": "solid",
+      "strokeColor": "#4a9eed",
+      "strokeWidth": 2,
+      "opacity": 100,
+      "boundElements": [
+        {
+          "id": "t_mem_l0",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "text",
+      "id": "t_mem_l0",
+      "x": 48,
+      "y": 120.0,
+      "width": 304,
+      "height": 20,
+      "text": "L0: Context Injection",
+      "fontSize": 18,
+      "fontFamily": 1,
+      "strokeColor": "#1e1e1e",
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "mem_l0",
+      "originalText": "L0: Context Injection",
+      "autoResize": true
+    },
+    {
+      "type": "rectangle",
+      "id": "mem_l1",
+      "x": 40,
+      "y": 180,
+      "width": 320,
+      "height": 80,
+      "roundness": {
+        "type": 3
+      },
+      "backgroundColor": "#fff3bf",
+      "fillStyle": "solid",
+      "strokeColor": "#fab005",
+      "strokeWidth": 2,
+      "opacity": 100,
+      "boundElements": [
+        {
+          "id": "t_mem_l1",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "text",
+      "id": "t_mem_l1",
+      "x": 48,
+      "y": 210.0,
+      "width": 304,
+      "height": 20,
+      "text": "L1: Working Memory",
+      "fontSize": 18,
+      "fontFamily": 1,
+      "strokeColor": "#1e1e1e",
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "mem_l1",
+      "originalText": "L1: Working Memory",
+      "autoResize": true
+    },
+    {
+      "type": "rectangle",
+      "id": "mem_l2",
+      "x": 40,
+      "y": 270,
+      "width": 320,
+      "height": 80,
+      "roundness": {
+        "type": 3
+      },
+      "backgroundColor": "#c3fae8",
+      "fillStyle": "solid",
+      "strokeColor": "#20c997",
+      "strokeWidth": 2,
+      "opacity": 100,
+      "boundElements": [
+        {
+          "id": "t_mem_l2",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "text",
+      "id": "t_mem_l2",
+      "x": 48,
+      "y": 300.0,
+      "width": 304,
+      "height": 20,
+      "text": "L2: OpenViking (Long-Term)",
+      "fontSize": 18,
+      "fontFamily": 1,
+      "strokeColor": "#1e1e1e",
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "mem_l2",
+      "originalText": "L2: OpenViking (Long-Term)",
+      "autoResize": true
+    },
+    {
+      "type": "rectangle",
+      "id": "mem_hindsight",
+      "x": 40,
+      "y": 360,
+      "width": 320,
+      "height": 80,
+      "roundness": {
+        "type": 3
+      },
+      "backgroundColor": "#eebefa",
+      "fillStyle": "solid",
+      "strokeColor": "#e64980",
+      "strokeWidth": 2,
+      "opacity": 100,
+      "boundElements": [
+        {
+          "id": "t_mem_hindsight",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "text",
+      "id": "t_mem_hindsight",
+      "x": 48,
+      "y": 390.0,
+      "width": 304,
+      "height": 20,
+      "text": "Hindsight: Graph Reasoning",
+      "fontSize": 18,
+      "fontFamily": 1,
+      "strokeColor": "#1e1e1e",
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "mem_hindsight",
+      "originalText": "Hindsight: Graph Reasoning",
+      "autoResize": true
+    },
+    {
+      "type": "rectangle",
+      "id": "mem_l3",
+      "x": 40,
+      "y": 450,
+      "width": 320,
+      "height": 80,
+      "roundness": {
+        "type": 3
+      },
+      "backgroundColor": "#ffd8a8",
+      "fillStyle": "solid",
+      "strokeColor": "#e67700",
+      "strokeWidth": 2,
+      "opacity": 100,
+      "boundElements": [
+        {
+          "id": "t_mem_l3",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "text",
+      "id": "t_mem_l3",
+      "x": 48,
+      "y": 480.0,
+      "width": 304,
+      "height": 20,
+      "text": "L3: Evolution Signals",
+      "fontSize": 18,
+      "fontFamily": 1,
+      "strokeColor": "#1e1e1e",
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "mem_l3",
+      "originalText": "L3: Evolution Signals",
+      "autoResize": true
+    },
+    {
+      "type": "rectangle",
+      "id": "mem_l0_desc",
+      "x": 420,
+      "y": 90,
+      "width": 380,
+      "height": 80,
+      "roundness": {
+        "type": 3
+      },
+      "backgroundColor": "#dbe4ff",
+      "fillStyle": "solid",
+      "strokeColor": "#4a9eed",
+      "strokeWidth": 2,
+      "opacity": 40
+    },
+    {
+      "type": "text",
+      "id": "t_mem_l0_desc",
+      "x": 432,
+      "y": 98,
+      "text": "\u00b7 MEMORY.md + USER.md (persistent)\n\u00b7 Session env vars\n\u00b7 Platform metadata",
+      "fontSize": 14,
+      "fontFamily": 1,
+      "strokeColor": "#1e1e1e",
+      "originalText": "\u00b7 MEMORY.md + USER.md (persistent)\n\u00b7 Session env vars\n\u00b7 Platform metadata",
+      "autoResize": true
+    },
+    {
+      "type": "rectangle",
+      "id": "mem_l1_desc",
+      "x": 420,
+      "y": 180,
+      "width": 380,
+      "height": 80,
+      "roundness": {
+        "type": 3
+      },
+      "backgroundColor": "#fff3bf",
+      "fillStyle": "solid",
+      "strokeColor": "#fab005",
+      "strokeWidth": 2,
+      "opacity": 40
+    },
+    {
+      "type": "text",
+      "id": "t_mem_l1_desc",
+      "x": 432,
+      "y": 188,
+      "text": "\u00b7 AIAgent state (session-scoped)\n\u00b7 todo list / beads active issues\n\u00b7 In-flight context",
+      "fontSize": 14,
+      "fontFamily": 1,
+      "strokeColor": "#1e1e1e",
+      "originalText": "\u00b7 AIAgent state (session-scoped)\n\u00b7 todo list / beads active issues\n\u00b7 In-flight context",
+      "autoResize": true
+    },
+    {
+      "type": "rectangle",
+      "id": "mem_l2_desc",
+      "x": 420,
+      "y": 270,
+      "width": 380,
+      "height": 80,
+      "roundness": {
+        "type": 3
+      },
+      "backgroundColor": "#c3fae8",
+      "fillStyle": "solid",
+      "strokeColor": "#20c997",
+      "strokeWidth": 2,
+      "opacity": 40
+    },
+    {
+      "type": "text",
+      "id": "t_mem_l2_desc",
+      "x": 432,
+      "y": 278,
+      "text": "\u00b7 Vector DB (BAAI/bge-large-zh-v1.5)\n\u00b7 Semantic search + browse\n\u00b7 SiliconFlow embedding",
+      "fontSize": 14,
+      "fontFamily": 1,
+      "strokeColor": "#1e1e1e",
+      "originalText": "\u00b7 Vector DB (BAAI/bge-large-zh-v1.5)\n\u00b7 Semantic search + browse\n\u00b7 SiliconFlow embedding",
+      "autoResize": true
+    },
+    {
+      "type": "rectangle",
+      "id": "mem_hindsight_desc",
+      "x": 420,
+      "y": 360,
+      "width": 380,
+      "height": 80,
+      "roundness": {
+        "type": 3
+      },
+      "backgroundColor": "#eebefa",
+      "fillStyle": "solid",
+      "strokeColor": "#e64980",
+      "strokeWidth": 2,
+      "opacity": 40
+    },
+    {
+      "type": "text",
+      "id": "t_mem_hindsight_desc",
+      "x": 432,
+      "y": 368,
+      "text": "\u00b7 Cross-session pattern detection\n\u00b7 Relation graph + temporal\n\u00b7 Reflect & summarize",
+      "fontSize": 14,
+      "fontFamily": 1,
+      "strokeColor": "#1e1e1e",
+      "originalText": "\u00b7 Cross-session pattern detection\n\u00b7 Relation graph + temporal\n\u00b7 Reflect & summarize",
+      "autoResize": true
+    },
+    {
+      "type": "rectangle",
+      "id": "mem_l3_desc",
+      "x": 420,
+      "y": 450,
+      "width": 380,
+      "height": 80,
+      "roundness": {
+        "type": 3
+      },
+      "backgroundColor": "#ffd8a8",
+      "fillStyle": "solid",
+      "strokeColor": "#e67700",
+      "strokeWidth": 2,
+      "opacity": 40
+    },
+    {
+      "type": "text",
+      "id": "t_mem_l3_desc",
+      "x": 432,
+      "y": 458,
+      "text": "\u00b7 Session log self-analysis\n\u00b7 Heracles log \u2192 insights\n\u00b7 ROV-TOV signal extraction",
+      "fontSize": 14,
+      "fontFamily": 1,
+      "strokeColor": "#1e1e1e",
+      "originalText": "\u00b7 Session log self-analysis\n\u00b7 Heracles log \u2192 insights\n\u00b7 ROV-TOV signal extraction",
+      "autoResize": true
+    },
+    {
+      "type": "arrow",
+      "id": "m_arrow_0",
+      "x": 200.0,
+      "y": 170,
+      "width": 0.0,
+      "height": 10,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0.0,
+          10
+        ]
+      ],
+      "strokeColor": "#868e96",
+      "strokeWidth": 2,
+      "endArrowhead": "arrow"
+    },
+    {
+      "type": "arrow",
+      "id": "m_arrow_1",
+      "x": 200.0,
+      "y": 260,
+      "width": 0.0,
+      "height": 10,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0.0,
+          10
+        ]
+      ],
+      "strokeColor": "#868e96",
+      "strokeWidth": 2,
+      "endArrowhead": "arrow"
+    },
+    {
+      "type": "arrow",
+      "id": "m_arrow_2",
+      "x": 200.0,
+      "y": 350,
+      "width": 0.0,
+      "height": 10,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0.0,
+          10
+        ]
+      ],
+      "strokeColor": "#868e96",
+      "strokeWidth": 2,
+      "endArrowhead": "arrow"
+    },
+    {
+      "type": "arrow",
+      "id": "m_arrow_3",
+      "x": 200.0,
+      "y": 440,
+      "width": 0.0,
+      "height": 10,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0.0,
+          10
+        ]
+      ],
+      "strokeColor": "#868e96",
+      "strokeWidth": 2,
+      "endArrowhead": "arrow"
+    },
+    {
+      "type": "arrow",
+      "id": "m_evo_out",
+      "x": 200.0,
+      "y": 540,
+      "width": 0.0,
+      "height": 40,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0.0,
+          40
+        ]
+      ],
+      "strokeColor": "#e67700",
+      "strokeWidth": 2,
+      "endArrowhead": "arrow",
+      "boundElements": [
+        {
+          "id": "l_evo",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "text",
+      "id": "l_evo",
+      "x": 180.0,
+      "y": 552.0,
+      "width": 40,
+      "height": 16,
+      "text": "evolve",
+      "fontSize": 12,
+      "fontFamily": 1,
+      "strokeColor": "#e67700",
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "m_evo_out",
+      "originalText": "evolve",
+      "autoResize": true
+    },
+    {
+      "type": "text",
+      "id": "mem_bottom_note",
+      "x": 60,
+      "y": 590,
+      "text": "\u2192 Self-evolution signal feeds back into L0 (updated MEMORY.md, new skills)",
+      "fontSize": 13,
+      "fontFamily": 1,
+      "strokeColor": "#868e96",
+      "originalText": "\u2192 Self-evolution signal feeds back into L0 (updated MEMORY.md, new skills)",
+      "autoResize": true
+    }
+  ],
+  "appState": {
+    "viewBackgroundColor": "#ffffff"
+  }
+}
